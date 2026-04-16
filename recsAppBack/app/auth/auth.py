@@ -3,13 +3,12 @@ import os
 from typing import Dict
 
 import jwt
+from app.db.engine import User
+from app.utils.utils import get_db
 from dotenv import load_dotenv
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-
-from app.db.engine import User
-from app.utils.utils import get_db
 
 load_dotenv()
 

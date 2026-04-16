@@ -1,20 +1,19 @@
 from typing import Annotated
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
-
 from app.auth.auth import create_jwt_token, decode_jwt_token, get_user_from_db
 from app.db.engine import Base, engine
 from app.handlers.interactions import router as interactions_router
+from app.handlers.profile import router as profile_router
 from app.handlers.projects import router as projects_router
 from app.handlers.ratings import router as ratings_router
 from app.handlers.recommendations import router as recommendations_router
 from app.handlers.tags import router as tags_router
 from app.handlers.users import router as users_router
-from app.handlers.profile import router as profile_router
 from app.models.users import User
 from app.utils.utils import init_superuser
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 
 app = FastAPI()
 

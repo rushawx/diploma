@@ -1,11 +1,10 @@
 import os
 import uuid
 
+from app.db.engine import User, session
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-
-from app.db.engine import User, session
 
 load_dotenv()
 
