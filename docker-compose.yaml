@@ -1,8 +1,17 @@
 services:
-  app:
-    build: recsApp
+
+  front:
+    build: recsAppFront
     ports:
-      - "80:80"
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  back:
+    build: recsAppBack
+    ports:
+      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy

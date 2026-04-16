@@ -12,6 +12,7 @@ from app.handlers.ratings import router as ratings_router
 from app.handlers.recommendations import router as recommendations_router
 from app.handlers.tags import router as tags_router
 from app.handlers.users import router as users_router
+from app.handlers.profile import router as profile_router
 from app.models.users import User
 from app.utils.utils import init_superuser
 
@@ -23,6 +24,7 @@ app.include_router(ratings_router)
 app.include_router(recommendations_router)
 app.include_router(tags_router)
 app.include_router(users_router)
+app.include_router(profile_router)
 
 Base.metadata.create_all(bind=engine)
 
@@ -52,4 +54,4 @@ async def about_user(user: User = Depends(decode_jwt_token)) -> dict:
 
 
 if __name__ == "__main__":
-    uvicorn.run(app)
+    uvicorn.run(app, port=8080)
