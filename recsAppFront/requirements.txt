@@ -1,7 +1,22 @@
-requests==2.33.1
+# CPU-Optimized Requirements for Frontend
+# This file excludes GPU-specific packages for faster, smaller installation
+
+# Core Streamlit
 streamlit==1.56.0
-scikit-learn==1.8.0
-pandas==3.0.2
+
+# ML/Data Processing
 numpy==2.4.4
+pandas==3.0.2
+scikit-learn==1.8.0
+
+# Sentence Transformers (CPU-optimized)
 sentence-transformers==5.4.1
+
+# Data handling
 openpyxl==3.1.5
+
+# API Client
+requests==2.33.1
+
+# Note: PyTorch is installed separately in Dockerfile for CPU-only version
+# Install via: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu

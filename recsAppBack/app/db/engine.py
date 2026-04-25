@@ -1,23 +1,22 @@
 import datetime
-import os
 
 import sqlalchemy as sa
-from dotenv import load_dotenv
+from app.config import settings
 from sqlalchemy import UUID, Column, DateTime, String
 from sqlalchemy.orm import sessionmaker
 
-load_dotenv()
+engine = sa.create_engine(
+    settings.DATABASE_URL,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+    echo=settings.DB_ECHO,
+)
 
-POSTGRES_USER = os.getenv("PG_USER")
-POSTGRES_PASSWORD = os.getenv("PG_PASSWORD")
-POSTGRES_HOST = os.getenv("PG_HOST")
-POSTGRES_PORT = os.getenv("PG_PORT")
-POSTGRES_DB = os.getenv("PG_DATABASE")
-DB_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-
-engine = sa.create_engine(DB_URL)
-
-session = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+session = sessionmaker(
+    bind=engine, autocommit=settings.DB_AUTOCOMMIT, autoflush=settings.DB_AUTOFLUSH
+)
 
 Base = sa.orm.declarative_base()
 

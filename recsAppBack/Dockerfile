@@ -1,12 +1,55 @@
+# Multi-stage build for optimized CPU-only performance
+FROM python:3.14-slim AS builder
+
+# Set build arguments for optimization
+ARG PYTORCH_DEVICE=cpu
+
+WORKDIR /app
+
+# Install system dependencies for faster builds
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt requirements.txt
+
+# Install CPU-only PyTorch (much faster and smaller)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Runtime stage - smaller image
 FROM python:3.14-slim
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+# Install runtime dependencies only (keep image small)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy Python packages from builder
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
 COPY . .
 
-ENV PYTHONUNBUFFERED=1
+# Ensure Python can find installed packages
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTORCH_ENABLE_MPS_FALLBACK=0 \
+    OMP_NUM_THREADS=4 \
+    MKL_NUM_THREADS=4 \
+    OPENBLAS_NUM_THREADS=4 \
+    VECLIB_MAXIMUM_THREADS=4 \
+    PYTHONPATH=/usr/local/lib/python3.14/site-packages:$PYTHONPATH
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Health check for faster startup detection
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

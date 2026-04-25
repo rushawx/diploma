@@ -1,35 +1,101 @@
 services:
-
   front:
-    build: recsAppFront
+    build:
+      context: recsAppFront
+      dockerfile: Dockerfile
+      args:
+        PYTORCH_DEVICE: cpu
     ports:
       - "8501:8501"
+    environment:
+      - BACKEND_URL=back:8080
+      - FORCE_CPU=true
+      - PYTORCH_DEVICE=cpu
+      - PYTORCH_THREADS=4
     depends_on:
       db:
         condition: service_healthy
+      back:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
 
   back:
-    build: recsAppBack
+    build:
+      context: recsAppBack
+      dockerfile: Dockerfile
+      args:
+        PYTORCH_DEVICE: cpu
     ports:
       - "8080:8080"
+    environment:
+      - FORCE_CPU=true
+      - PYTORCH_DEVICE=cpu
+      - PYTORCH_THREADS=4
+      - DB_POOL_SIZE=5
+      - DB_ECHO=false
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
   db:
-    image: postgres:latest
+    image: postgres:16-alpine
     env_file:
       - .env
     environment:
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
       POSTGRES_DB: ${PG_DATABASE}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
     ports:
       - "5432:5432"
-    healthcheck:
-      test: /usr/bin/pg_isready
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
     volumes:
+      - postgres_data:/var/lib/postgresql/data
       - ./init/pg:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  postgres_data:
+    driver: local
