@@ -1,0 +1,16 @@
+python-dotenv==1.2.1
+
+# Database
+SQLAlchemy==2.0.46
+psycopg2-binary==2.9.11
+pgvector==0.4.2
+
+# Data Processing
+numpy==2.4.4
+pandas==3.0.2
+
+# Data handling
+openpyxl==3.1.5
+
+# ML Dependencies
+sentence-transformers==5.4.1

@@ -17,8 +17,3 @@ python-multipart==0.0.22
 
 # Note: PyTorch is installed separately in Dockerfile for CPU-only version
 # Install via: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-# Linters (optional, remove for production)
-black==26.1.0
-flake8==7.3.0
-isort==8.0.0

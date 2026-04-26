@@ -15,8 +15,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      back:
-        condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
@@ -50,6 +50,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
@@ -66,8 +68,56 @@ services:
           cpus: '1'
           memory: 1G
 
+  init:
+    build:
+      context: recsAppInit
+      dockerfile: Dockerfile
+    environment:
+      # Database configuration
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_USER=postgres
+      - PG_PASSWORD=postgres
+      - PG_DATABASE=postgres
+      - DB_POOL_SIZE=5
+      - DB_MAX_OVERFLOW=10
+      - DB_POOL_TIMEOUT=30
+      - DB_POOL_RECYCLE=3600
+      - DB_ECHO=false
+      - DB_AUTOCOMMIT=false
+      - DB_AUTOFLUSH=false
+
+      # Data configuration
+      - DATA_PATH=app/data.xlsx
+
+      # Model configuration
+      - TRANSFORMER_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      - EMBEDDING_DIMENSION=384
+
+      # Processing configuration
+      - BATCH_SIZE=100
+      - SKIP_EMBEDDING=false
+      - STOP_ON_ERROR=true
+
+      # Logging configuration
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/resources  # Mount data directory
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     env_file:
       - .env
     environment:

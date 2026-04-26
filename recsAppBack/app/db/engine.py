@@ -33,7 +33,6 @@ class User(Base):
     phone_number = Column(String, unique=True)
     self_bio = Column(String, unique=False)
     user_type = Column(String, unique=False)
-    embedding = Column(String, unique=False)
     password = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(
