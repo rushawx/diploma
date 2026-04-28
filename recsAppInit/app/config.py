@@ -48,6 +48,10 @@ class Settings:
         os.getenv("STOP_ON_ERROR", "false").lower() == "true"
     )
 
+    # Admin Configuration
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "SYSTEM")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "change-me")
+
     # Logging Configuration
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = os.getenv(
         "LOG_LEVEL", "INFO"

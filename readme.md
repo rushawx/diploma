@@ -16,25 +16,21 @@ docker compose up --build
 
 ## Features
 
-✅ **JWT Authentication** - Secure user authentication
-✅ **CPU-Optimized ML** - Fast inference without GPU requirements
-✅ **Project Recommendations** - AI-powered project matching
-✅ **Real-time Search** - Instant semantic search using transformers
-✅ **User Management** - Complete auth flow with profiles
+✅ **JWT Authentication** - Secure user authentication with profile management
+✅ **Project Management** - Full CRUD operations with embedding generation
+✅ **AI-Powered Search** - Semantic search using transformer models
+✅ **User Projects** - Claim and manage personal projects
+✅ **PostgreSQL + pgvector** - Optimized vector database for embeddings
 ✅ **Docker-Optimized** - Fast builds and small images
 
 ## Development
 
 **Implemented:**
-- User authentication and JWT tokens
-- Basic recommendation system with ML
-- Project search and management UI
-- Profile management
-
-**In Progress:**
-- Most CRUD endpoints (projects, tags, ratings, etc.)
-- Advanced recommendation algorithms
-- Complete database schema implementation
+- Complete user authentication flow
+- Project CRUD operations with automatic embedding generation
+- Semantic project search and recommendations
+- User profile and project claiming functionality
+- Database initialization with project embeddings
 
 ## Architecture
 
@@ -45,17 +41,22 @@ docker compose up --build
 │   │   ├── main.py          # Application entry point
 │   │   ├── config.py         # Configuration settings
 │   │   ├── auth/             # JWT authentication
-│   │   ├── db/               # Database layer
+│   │   ├── db/               # Database layer with pgvector
 │   │   ├── handlers/          # API endpoints
 │   │   └── models/            # Data models
 │   └── requirements.txt
-└── recsAppFront/              # Streamlit frontend
+├── recsAppFront/              # Streamlit frontend
+│   ├── app/
+│   │   ├── streamlit.py      # Main application
+│   │   ├── config.py         # Configuration settings
+│   │   └── handlers/          # ML and auth utilities
+│   └── requirements.txt
+└── recsAppInit/               # Data initialization service
     ├── app/
-    │   ├── streamlit.py      # Main application
+    │   ├── main.py          # Embedding generation
     │   ├── config.py         # Configuration settings
-    │   └── handlers/          # ML and auth utilities
+    │   └── models.py         # Data models
     └── requirements.txt
-└── .streamlit/secrets.toml    # Streamlit configuration
 ```
 
 ## API Endpoints
@@ -63,15 +64,17 @@ docker compose up --build
 **Public:**
 - `POST /profile/signup` - Create user account
 - `POST /profile/login` - Get JWT token
-- `POST /token` - OAuth2 token endpoint
 - `GET /` - Service health check
 
 **Protected (JWT required):**
-- `GET /about_user` - Get current user
+- `GET /projects/` - List all projects (simplified view)
+- `GET /projects/with-embeddings` - List projects with embeddings
+- `GET /projects/user/{user_id}` - Get projects by user
+- `GET /projects/{project_id}` - Get specific project details
+- `POST /projects/` - Create new project (auto-generates embeddings)
+- `PUT /projects/{project_id}` - Update project (claim ownership)
+- `DELETE /projects/{project_id}` - Soft delete project
 - `GET /profile/me` - Get user profile
-- `GET /projects/` - List all projects
-- `POST /projects/` - Create new project
-- `GET /recommendations/{user_id}` - Get AI recommendations
 
 ## Configuration Details
 
@@ -79,11 +82,16 @@ docker compose up --build
 - Database settings and connection pooling
 - JWT authentication configuration
 - API and security settings
-- Server and logging configuration
-- ML/embedding settings
+- ML/embedding model configuration
 
 **Frontend Config** (`.streamlit/secrets.toml`):
 - Backend connection settings
 - UI customization options
 - ML model and caching configuration
 - Performance tuning parameters
+
+**Init Service** (`recsAppInit/app/config.py`):
+- Database connection settings
+- Data file paths
+- Embedding model configuration
+- Batch processing settings

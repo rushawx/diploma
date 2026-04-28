@@ -2,8 +2,10 @@ import datetime
 
 import sqlalchemy as sa
 from app.config import settings
-from sqlalchemy import UUID, Column, DateTime, String
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import UUID, Column, DateTime, String, Text, ForeignKey, Float
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.dialects.postgresql import ARRAY
+from pgvector.sqlalchemy import Vector
 
 engine = sa.create_engine(
     settings.DATABASE_URL,
@@ -39,4 +41,21 @@ class User(Base):
         DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
     )
     deleted_at = Column(DateTime, nullable=True)
-    modified_by = Column(String, nullable=True)
+    modified_by = Column(UUID(as_uuid=True), nullable=True)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    title_rus = Column(String(512), nullable=False)
+    title_eng = Column(String(512), nullable=True)
+    annotation = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    embedding = Column(Vector(384), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
+    )
+    deleted_at = Column(DateTime, nullable=True)
+    modified_by = Column(UUID(as_uuid=True), nullable=True)

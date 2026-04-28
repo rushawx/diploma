@@ -5,11 +5,8 @@ import uvicorn
 from app.config import settings
 from app.auth.auth import create_jwt_token, get_current_active_user, get_user_from_db
 from app.db.engine import Base, engine
-from app.handlers.interactions import router as interactions_router
 from app.handlers.profile import router as profile_router
 from app.handlers.projects import router as projects_router
-from app.handlers.ratings import router as ratings_router
-from app.handlers.recommendations import router as recommendations_router
 from app.handlers.tags import router as tags_router
 from app.handlers.users import router as users_router
 from app.models.users import User
@@ -70,10 +67,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-app.include_router(interactions_router)
 app.include_router(projects_router)
-app.include_router(ratings_router)
-app.include_router(recommendations_router)
 app.include_router(tags_router)
 app.include_router(users_router)
 app.include_router(profile_router)

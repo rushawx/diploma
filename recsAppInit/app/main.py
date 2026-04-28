@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 
 from config import settings
-from models import Project
+from models import Project, User
 
 
 logging.basicConfig(
@@ -92,6 +92,16 @@ def insert_projects_to_database(
     try:
         logger.info(f"Inserting {len(df)} projects into database")
 
+        admin_user = session.query(User).filter(
+            User.nick_name == settings.ADMIN_USERNAME
+        ).first()
+
+        if not admin_user:
+            logger.error(f"Admin user '{settings.ADMIN_USERNAME}' not found")
+            return 0
+
+        logger.info(f"Using admin user: {admin_user.nick_name} (id: {admin_user.id})")
+
         inserted_count = 0
         skipped_count = 0
         error_count = 0
@@ -104,6 +114,7 @@ def insert_projects_to_database(
                     title_eng=project_data.get("title_eng"),
                     annotation=project_data.get("annotation"),
                     description=project_data.get("description"),
+                    modified_by=admin_user.id,
                 )
                 project.embedding = embeddings[idx].astype("float32").tolist()
 

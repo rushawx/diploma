@@ -10,6 +10,7 @@ pydantic==2.12.5
 # Database
 SQLAlchemy==2.0.46
 psycopg2-binary==2.9.11
+pgvector==0.4.2
 
 # Authentication
 PyJWT==2.11.0

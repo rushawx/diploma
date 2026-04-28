@@ -15,6 +15,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      back:
+        condition: service_healthy
       init:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -50,8 +52,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      init:
-        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
@@ -105,6 +105,8 @@ services:
       - ./data:/app/resources  # Mount data directory
     depends_on:
       db:
+        condition: service_healthy
+      back:
         condition: service_healthy
     restart: on-failure
     deploy:
