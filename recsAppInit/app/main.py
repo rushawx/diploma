@@ -8,6 +8,7 @@ import logging
 import os
 import pickle
 import uuid
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+
+with open(settings.TITLES_WITH_TAGS_PATH, "rb") as f:
+    titles_with_tags_dict = pickle.load(f)
+
+with open(settings.TAGS_SET_PATH, "rb") as f:
+    tags_idx_dict = {tag: idx for idx, tag in enumerate(sorted(pickle.load(f)))}
+
+
+def compile_tags(tags: List[str]) -> List[int]:
+    output = [0 for _ in range(len(tags_idx_dict))]
+    for tag in tags:
+        if tag in tags_idx_dict:
+            output[tags_idx_dict[tag]] = 1
+        else:
+            logger.warning(f"Tag '{tag}' not found in tags_idx_dict")
+    return output
 
 
 def load_data_from_excel(file_path: str) -> pd.DataFrame:
@@ -108,15 +126,21 @@ def insert_projects_to_database(
 
         for idx, project_data in enumerate(df.to_dict(orient="records")):
             try:
+                title_rus = project_data.get("title_rus")
                 project = Project(
                     id=uuid.uuid4(),
-                    title_rus=project_data.get("title_rus"),
+                    title_rus=title_rus,
                     title_eng=project_data.get("title_eng"),
                     annotation=project_data.get("annotation"),
                     description=project_data.get("description"),
                     modified_by=admin_user.id,
                 )
                 project.embedding = embeddings[idx].astype("float32").tolist()
+
+                project_tags = titles_with_tags_dict.get(title_rus, [])
+                if not project_tags:
+                    logger.warning(f"No tags found for project: {title_rus}")
+                project.tags = compile_tags(project_tags)
 
                 session.add(project)
                 session.commit()

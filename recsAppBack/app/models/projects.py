@@ -68,3 +68,16 @@ class ProjectWithEmbedding(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProjectWithTags(BaseModel):
+    """Project model with tags vector for tag-based similarity search"""
+    id: uuid.UUID
+    title_rus: str
+    title_eng: Optional[str] = None
+    annotation: Optional[str] = None
+    description: Optional[str] = None
+    tags: List[float]
+
+    class Config:
+        from_attributes = True

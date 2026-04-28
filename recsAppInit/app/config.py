@@ -29,13 +29,18 @@ class Settings:
     # Data Configuration
     DATA_PATH: str = os.getenv("DATA_PATH", "data.xlsx")
     EMBEDDINGS_PATH: str = os.getenv("EMBEDDINGS_PATH", "item_embeddings.pkl")
+    TITLES_WITH_TAGS_PATH: str = os.getenv("TITLES_WITH_TAGS_PATH", "titles_with_tags_dict.pkl")
+    TAGS_SET_PATH: str = os.getenv("TAGS_SET_PATH", "tags_set.pkl")
+
+    # Vector Configuration
+    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))
+    TAGS_VECTOR_DIMENSION: int = int(os.getenv("TAGS_VECTOR_DIMENSION", "1914"))
 
     # Model Configuration
     TRANSFORMER_MODEL: str = os.getenv(
         "TRANSFORMER_MODEL",
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     )
-    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "2048"))
 
     # Validation Configuration
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "100"))

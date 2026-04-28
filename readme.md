@@ -16,18 +16,18 @@ docker compose up --build
 
 ## Features
 
-✅ **JWT Authentication** - Secure user authentication with profile management
-✅ **Project Management** - Full CRUD operations with embedding generation
-✅ **AI-Powered Search** - Semantic search using transformer models
-✅ **User Projects** - Claim and manage personal projects
-✅ **PostgreSQL + pgvector** - Optimized vector database for embeddings
-✅ **Docker-Optimized** - Fast builds and small images
+<li>✅ <b>JWT Authentication</b> - Secure user authentication with profile management
+<li>✅ <b>Project Management</b> - Full CRUD operations with embedding generation
+<li>✅ <b>AI-Powered Search</b> - Semantic search using transformer models + Tags based search using cosine similarity
+<li>✅ <b>User Projects</b> - Claim and manage personal projects
+<li>✅ <b>PostgreSQL + pgvector</b> - Optimized vector database for embeddings
+<li>✅ <b>Docker-Optimized</b> - Fast builds and small images
 
 ## Development
 
 **Implemented:**
 - Complete user authentication flow
-- Project CRUD operations with automatic embedding generation
+- Project CRUD operations with automatic embedding and tags generation
 - Semantic project search and recommendations
 - User profile and project claiming functionality
 - Database initialization with project embeddings

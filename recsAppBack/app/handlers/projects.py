@@ -3,7 +3,7 @@ from typing import List
 
 from app.auth.auth import get_current_active_user
 from app.db.engine import Project, User, session
-from app.models.projects import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate, ProjectWithEmbedding
+from app.models.projects import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate, ProjectWithEmbedding, ProjectWithTags
 from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -28,6 +28,20 @@ async def get_projects_with_embeddings(current_user: User = Depends(get_current_
         projects = db.query(Project).filter(
             Project.deleted_at.is_(None),
             Project.embedding.isnot(None)
+        ).all()
+        return projects
+    finally:
+        db.close()
+
+
+@router.get("/with-tags", response_model=List[ProjectWithTags])
+async def get_projects_with_tags(current_user: User = Depends(get_current_active_user)):
+    """Get all projects with tags for tag-based similarity search"""
+    db = session()
+    try:
+        projects = db.query(Project).filter(
+            Project.deleted_at.is_(None),
+            Project.tags.isnot(None)
         ).all()
         return projects
     finally:

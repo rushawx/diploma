@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS projects (
     annotation TEXT,
     description TEXT,
     embedding VECTOR(384),
+    tags VECTOR(1914),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,

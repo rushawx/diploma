@@ -10,7 +10,10 @@ from handlers.auth_helpers import (
     signup,
 )
 from handlers.transformers import (
+    compile_tags_vector,
     get_model,
+    get_tags_set,
+    tags_search,
     transformer_search,
 )
 
@@ -47,6 +50,7 @@ if "model" not in st.session_state:
 menu = [
     "Welcome Page",
     "Select Your Project",
+    "Find Similar Projects by Tags",
     "View Available Projects",
     "View Project Details",
     "View My Projects",
@@ -110,6 +114,71 @@ elif choice == "Select Your Project":
                         st.markdown("---")
                 else:
                     st.info("No similar projects found")
+    else:
+        st.warning("Please login to access this feature")
+elif choice == "Find Similar Projects by Tags":
+    st.subheader("Find Similar Projects by Tags")
+    if is_authenticated():
+        if is_token_expired():
+            st.warning("Session expired. Please login again.")
+        else:
+            st.markdown("Select multiple tags to find projects with similar tags using cosine similarity.")
+
+            # Load available tags
+            available_tags = get_tags_set()
+
+            if not available_tags:
+                st.error("No tags available. Please ensure tags_set.pkl file exists.")
+            else:
+                st.info(f"📋 Available tags: {len(available_tags)}")
+
+                # Multi-select for tags
+                selected_tags = st.multiselect(
+                    "Select tags (choose one or more)",
+                    options=available_tags,
+                    help="Choose multiple tags to find projects with similar tag combinations"
+                )
+
+                if selected_tags:
+                    st.write(f"✅ Selected tags: {', '.join(selected_tags)}")
+
+                    # Search button
+                    if st.button("Find Projects with Similar Tags"):
+                        if not selected_tags:
+                            st.error("Please select at least one tag")
+                        else:
+                            with st.spinner("Searching for projects with similar tags..."):
+                                # Compile tags vector from selected tags
+                                tags_vector = compile_tags_vector(selected_tags)
+
+                                # Search for similar projects
+                                results = tags_search(tags_vector=tags_vector)
+
+                                if not results.empty:
+                                    st.success(f"Found {len(results)} projects with similar tags!")
+
+                                    # Show results
+                                    for _, row in results.iterrows():
+                                        project = row.get('project', {})
+                                        similarity_score = row.get('score', 0)
+
+                                        st.markdown(f"### {project.get('title_rus', 'Untitled')}")
+                                        st.caption(f"🏷️ Tags Similarity: {similarity_score:.2f}")
+
+                                        if project.get('title_eng'):
+                                            st.caption(f"🇬🇧 {project.get('title_eng')}")
+
+                                        if project.get('annotation'):
+                                            st.info(f"📝 **Annotation:** {project.get('annotation')}")
+
+                                        if project.get('description'):
+                                            st.text(project.get('description', ''))
+
+                                        st.markdown("---")
+                                else:
+                                    st.info("No projects found with similar tags")
+                else:
+                    st.info("👆 Select tags above to search for similar projects")
     else:
         st.warning("Please login to access this feature")
 elif choice == "View Available Projects":

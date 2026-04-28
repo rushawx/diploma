@@ -78,12 +78,8 @@ class Settings:
         return self._get_secret("TRANSFORMER_CACHE_TTL", "10m")
 
     @property
-    def DATA_FILE(self) -> str:
-        return self._get_secret("DATA_FILE", "app/resources/data.xlsx")
-
-    @property
-    def EMBEDDINGS_FILE(self) -> str:
-        return self._get_secret("EMBEDDINGS_FILE", "app/resources/item_embeddings.pkl")
+    def TAGS_SET_FILE(self) -> str:
+        return self._get_secret("TAGS_SET_FILE", "app/resources/tags_set.pkl")
 
     @property
     def DATA_CACHE_TTL(self) -> str:

@@ -7,6 +7,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
 
+from config import settings
+
 Base = declarative_base()
 
 
@@ -35,7 +37,8 @@ class Project(Base):
     title_eng = Column(String(512), nullable=True)
     annotation = Column(Text(), nullable=False)
     description = Column(Text(), nullable=False)
-    embedding = Column(Vector(384), nullable=False)
+    embedding = Column(Vector(settings.EMBEDDING_DIMENSION), nullable=False)
+    tags = Column(Vector(settings.TAGS_VECTOR_DIMENSION), nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
