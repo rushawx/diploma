@@ -15,6 +15,13 @@ async def signup(input: UserSignup, db=Depends(get_db)):
         id=str(uuid.uuid4()),
         nick_name=input.nick_name,
         password=input.password,
+        first_name=input.first_name,
+        middle_name=input.middle_name,
+        last_name=input.last_name,
+        email_address=input.email_address,
+        phone_number=input.phone_number,
+        self_bio=input.self_bio,
+        user_type=input.user_type,
     )
     db.add(user)
     db.commit()
@@ -39,6 +46,12 @@ async def get_profile(current_user: User = Depends(get_current_active_user)):
         "id": str(current_user.id),
         "nick_name": current_user.nick_name,
         "first_name": current_user.first_name,
+        "middle_name": current_user.middle_name,
         "last_name": current_user.last_name,
         "email_address": current_user.email_address,
+        "phone_number": current_user.phone_number,
+        "self_bio": current_user.self_bio,
+        "user_type": current_user.user_type,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
     }

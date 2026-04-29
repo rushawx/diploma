@@ -43,6 +43,7 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     modified_by = Column(UUID(as_uuid=True), nullable=True)
+    chosen_by = Column(UUID(as_uuid=True), nullable=True)
 
     def __repr__(self):
         return f"<Project(id={self.id}, title_rus='{self.title_rus}')>"

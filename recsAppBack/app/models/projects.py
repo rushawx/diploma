@@ -32,6 +32,7 @@ class ProjectUpdate(BaseModel):
     title_eng: Optional[str] = Field(None, max_length=512)
     annotation: Optional[str] = None
     description: Optional[str] = None
+    chosen_by: Optional[uuid.UUID] = None
 
 
 class ProjectResponse(ProjectBase):
@@ -40,6 +41,7 @@ class ProjectResponse(ProjectBase):
     updated_at: datetime
     deleted_at: Optional[datetime] = None
     modified_by: Optional[uuid.UUID] = None
+    chosen_by: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True
@@ -52,6 +54,7 @@ class ProjectListResponse(BaseModel):
     title_eng: Optional[str] = None
     annotation: Optional[str] = None
     description: Optional[str] = None
+    chosen_by: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True

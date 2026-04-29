@@ -33,4 +33,5 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
     modified_by UUID
+    chosen_by UUID
 );

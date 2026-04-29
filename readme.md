@@ -23,6 +23,23 @@ docker compose up --build
 <li>✅ <b>PostgreSQL + pgvector</b> - Optimized vector database for embeddings
 <li>✅ <b>Docker-Optimized</b> - Fast builds and small images
 
+## Screenshots
+
+### View Available Projects
+![View Available Projects](images/ViewAvailableProjects.png)
+
+### Find Projects by Query
+![Find Projects by Query](images/FindProjectsByQuery.png)
+
+### Find Projects by Tags
+![Find Projects by Tags](images/FindProjectsByTags.png)
+
+### View Project Details
+![View Project Details](images/ViewProjectDetails.png)
+
+### View My Projects
+![View My Projects](images/ViewMyProjects.png)
+
 ## Development
 
 **Implemented:**

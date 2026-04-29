@@ -60,3 +60,4 @@ class Project(Base):
     )
     deleted_at = Column(DateTime, nullable=True)
     modified_by = Column(UUID(as_uuid=True), nullable=True)
+    chosen_by = Column(UUID(as_uuid=True), nullable=True)

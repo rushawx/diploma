@@ -30,12 +30,12 @@ def login(nick_name: str, password: str) -> bool:
         return False
 
 
-def signup(nick_name: str, password: str) -> bool:
-    """Signup new user"""
+def signup(user_data: dict) -> bool:
+    """Signup new user with full profile data"""
     try:
         response = requests.post(
             f"{settings.BACKEND_BASE_URL}/profile/signup",
-            json={"nick_name": nick_name, "password": password},
+            json=user_data,
             timeout=settings.BACKEND_TIMEOUT,
         )
 

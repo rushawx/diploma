@@ -64,7 +64,7 @@ async def get_projects_by_user(
     db = session()
     try:
         projects = db.query(Project).filter(
-            Project.modified_by == user_uuid,
+            Project.chosen_by == user_uuid,
             Project.deleted_at.is_(None)
         ).all()
         return projects
