@@ -2,7 +2,7 @@ import datetime
 
 import sqlalchemy as sa
 from app.config import settings
-from sqlalchemy import UUID, Column, DateTime, String, Text, ForeignKey, Float
+from sqlalchemy import UUID, Column, DateTime, String, Text, ForeignKey, Float, Integer
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.dialects.postgresql import ARRAY
 from pgvector.sqlalchemy import Vector
@@ -21,6 +21,26 @@ session = sessionmaker(
 )
 
 Base = sa.orm.declarative_base()
+
+
+class Rating(Base):
+    __tablename__ = "ratings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    rating = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
+    )
+
+    user = relationship("User", backref="ratings")
+    project = relationship("Project", backref="ratings")
+
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "project_id", name="unique_user_project_rating"),
+    )
 
 
 class User(Base):

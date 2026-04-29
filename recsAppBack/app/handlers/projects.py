@@ -1,10 +1,21 @@
 import uuid
-from typing import List
+from typing import List, Optional
 
 from app.auth.auth import get_current_active_user
-from app.db.engine import Project, User, session
-from app.models.projects import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate, ProjectWithEmbedding, ProjectWithTags
+from app.db.engine import Project, User, Rating, session
+from app.models.projects import (
+    ProjectCreate,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdate,
+    ProjectWithEmbedding,
+    ProjectWithTags,
+    RatingCreate,
+    RatingUpdate,
+    RatingResponse,
+)
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -21,14 +32,17 @@ async def get_projects(current_user: User = Depends(get_current_active_user)):
 
 
 @router.get("/with-embeddings", response_model=List[ProjectWithEmbedding])
-async def get_projects_with_embeddings(current_user: User = Depends(get_current_active_user)):
+async def get_projects_with_embeddings(
+    current_user: User = Depends(get_current_active_user),
+):
     """Get all projects with embeddings for similarity search"""
     db = session()
     try:
-        projects = db.query(Project).filter(
-            Project.deleted_at.is_(None),
-            Project.embedding.isnot(None)
-        ).all()
+        projects = (
+            db.query(Project)
+            .filter(Project.deleted_at.is_(None), Project.embedding.isnot(None))
+            .all()
+        )
         return projects
     finally:
         db.close()
@@ -39,10 +53,11 @@ async def get_projects_with_tags(current_user: User = Depends(get_current_active
     """Get all projects with tags for tag-based similarity search"""
     db = session()
     try:
-        projects = db.query(Project).filter(
-            Project.deleted_at.is_(None),
-            Project.tags.isnot(None)
-        ).all()
+        projects = (
+            db.query(Project)
+            .filter(Project.deleted_at.is_(None), Project.tags.isnot(None))
+            .all()
+        )
         return projects
     finally:
         db.close()
@@ -57,16 +72,16 @@ async def get_projects_by_user(
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format"
         )
 
     db = session()
     try:
-        projects = db.query(Project).filter(
-            Project.chosen_by == user_uuid,
-            Project.deleted_at.is_(None)
-        ).all()
+        projects = (
+            db.query(Project)
+            .filter(Project.chosen_by == user_uuid, Project.deleted_at.is_(None))
+            .all()
+        )
         return projects
     finally:
         db.close()
@@ -81,21 +96,20 @@ async def get_project(
         project_uuid = uuid.UUID(project_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid project ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid project ID format"
         )
 
     db = session()
     try:
-        project = db.query(Project).filter(
-            Project.id == project_uuid,
-            Project.deleted_at.is_(None)
-        ).first()
+        project = (
+            db.query(Project)
+            .filter(Project.id == project_uuid, Project.deleted_at.is_(None))
+            .first()
+        )
 
         if not project:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
             )
 
         return project
@@ -105,8 +119,7 @@ async def get_project(
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    project_data: ProjectCreate,
-    current_user: User = Depends(get_current_active_user)
+    project_data: ProjectCreate, current_user: User = Depends(get_current_active_user)
 ):
     """Create a new project"""
     db = session()
@@ -118,7 +131,7 @@ async def create_project(
             annotation=project_data.annotation,
             description=project_data.description,
             embedding=project_data.embedding,
-            modified_by=current_user.id
+            modified_by=current_user.id,
         )
 
         db.add(new_project)
@@ -130,7 +143,7 @@ async def create_project(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create project: {str(e)}"
+            detail=f"Failed to create project: {str(e)}",
         )
     finally:
         db.close()
@@ -140,28 +153,27 @@ async def create_project(
 async def update_project(
     project_id: str,
     project_data: ProjectUpdate,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Update an existing project"""
     try:
         project_uuid = uuid.UUID(project_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid project ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid project ID format"
         )
 
     db = session()
     try:
-        project = db.query(Project).filter(
-            Project.id == project_uuid,
-            Project.deleted_at.is_(None)
-        ).first()
+        project = (
+            db.query(Project)
+            .filter(Project.id == project_uuid, Project.deleted_at.is_(None))
+            .first()
+        )
 
         if not project:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
             )
 
         update_data = project_data.model_dump(exclude_unset=True)
@@ -180,7 +192,7 @@ async def update_project(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update project: {str(e)}"
+            detail=f"Failed to update project: {str(e)}",
         )
     finally:
         db.close()
@@ -188,32 +200,31 @@ async def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
-    project_id: str,
-    current_user: User = Depends(get_current_active_user)
+    project_id: str, current_user: User = Depends(get_current_active_user)
 ):
     """Soft delete a project"""
     try:
         project_uuid = uuid.UUID(project_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid project ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid project ID format"
         )
 
     db = session()
     try:
-        project = db.query(Project).filter(
-            Project.id == project_uuid,
-            Project.deleted_at.is_(None)
-        ).first()
+        project = (
+            db.query(Project)
+            .filter(Project.id == project_uuid, Project.deleted_at.is_(None))
+            .first()
+        )
 
         if not project:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
             )
 
         from datetime import datetime
+
         project.deleted_at = datetime.now()
         project.modified_by = current_user.id
 
@@ -226,7 +237,141 @@ async def delete_project(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete project: {str(e)}"
+            detail=f"Failed to delete project: {str(e)}",
         )
+    finally:
+        db.close()
+
+
+@router.post(
+    "/rate", response_model=RatingResponse, status_code=status.HTTP_201_CREATED
+)
+async def rate_project(
+    rating_data: RatingCreate, current_user: User = Depends(get_current_active_user)
+):
+    """Rate a project (1-5 stars)"""
+    db = session()
+    try:
+        project = (
+            db.query(Project)
+            .filter(Project.id == rating_data.project_id, Project.deleted_at.is_(None))
+            .first()
+        )
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+            )
+
+        existing_rating = (
+            db.query(Rating)
+            .filter(
+                Rating.user_id == current_user.id,
+                Rating.project_id == rating_data.project_id,
+            )
+            .first()
+        )
+
+        if existing_rating:
+            existing_rating.rating = rating_data.rating
+            db.commit()
+            db.refresh(existing_rating)
+            return existing_rating
+
+        new_rating = Rating(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            project_id=rating_data.project_id,
+            rating=rating_data.rating,
+        )
+
+        db.add(new_rating)
+        db.commit()
+        db.refresh(new_rating)
+
+        return new_rating
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rate project: {str(e)}",
+        )
+    finally:
+        db.close()
+
+
+@router.get("/{project_id}/rating", response_model=Optional[RatingResponse])
+async def get_user_rating(
+    project_id: str, current_user: User = Depends(get_current_active_user)
+):
+    """Get current user's rating for a specific project"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid project ID format"
+        )
+
+    db = session()
+    try:
+        rating = (
+            db.query(Rating)
+            .filter(
+                Rating.user_id == current_user.id, Rating.project_id == project_uuid
+            )
+            .first()
+        )
+
+        return rating
+    finally:
+        db.close()
+
+
+@router.get("/{project_id}/ratings", response_model=List[RatingResponse])
+async def get_project_ratings(
+    project_id: str, current_user: User = Depends(get_current_active_user)
+):
+    """Get all ratings for a specific project"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid project ID format"
+        )
+
+    db = session()
+    try:
+        ratings = (
+            db.query(Rating)
+            .filter(Rating.project_id == project_uuid)
+            .options(joinedload(Rating.user))
+            .all()
+        )
+
+        return ratings
+    finally:
+        db.close()
+
+
+@router.get("/ratings/all", response_model=List[dict])
+async def get_all_ratings(current_user: User = Depends(get_current_active_user)):
+    """Get all ratings in format suitable for ALS model"""
+    db = session()
+    try:
+        ratings = db.query(Rating).all()
+
+        result = []
+        for rating in ratings:
+            result.append(
+                {
+                    "user_id": str(rating.user_id),
+                    "project_id": str(rating.project_id),
+                    "rating": rating.rating,
+                }
+            )
+
+        return result
     finally:
         db.close()

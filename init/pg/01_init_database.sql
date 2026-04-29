@@ -32,6 +32,16 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
-    modified_by UUID
+    modified_by UUID,
     chosen_by UUID
+);
+
+CREATE TABLE IF NOT EXISTS ratings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    project_id UUID NOT NULL REFERENCES projects(id),
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, project_id)
 );

@@ -82,6 +82,10 @@ class Settings:
         return self._get_secret("TAGS_SET_FILE", "app/resources/tags_set.pkl")
 
     @property
+    def ALS_MODEL_FILE(self) -> str:
+        return self._get_secret("ALS_MODEL_FILE", "app/resources/custom_als_model.pkl")
+
+    @property
     def DATA_CACHE_TTL(self) -> str:
         return self._get_secret("DATA_CACHE_TTL", "10m")
 

@@ -4,14 +4,13 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from app.config import Settings
-from handlers.transformers_config import configure_device, get_torch_device
+from handlers.transformers_config import get_torch_device
 from handlers.auth_helpers import make_authenticated_request
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from app.als_explicit import ExplicitALS
 
 settings = Settings()
-
-_device = configure_device()
 
 
 def cosine_similarity_tags(tags_vector1: list, tags_vector2: list) -> float:
@@ -133,7 +132,7 @@ def transformer_search(model, query: str, top_k: int = None):
     embeddings = []
     titles = []
     for project in projects:
-        embedding = project.get('embedding', [])
+        embedding = project.get("embedding", [])
         if embedding:
             embeddings.append(embedding)
             titles.append(project)
@@ -157,12 +156,14 @@ def transformer_search(model, query: str, top_k: int = None):
     results = []
     for i in valid_indices:
         project = titles[i]
-        results.append({
-            'title_rus': project.get('title_rus', 'Untitled'),
-            'score': sims[i],
-            'algo': 'transformer',
-            'project': project
-        })
+        results.append(
+            {
+                "title_rus": project.get("title_rus", "Untitled"),
+                "score": sims[i],
+                "algo": "transformer",
+                "project": project,
+            }
+        )
 
     return pd.DataFrame(results)
 
@@ -185,33 +186,214 @@ def tags_search(tags_vector: list, top_k: int = None):
         st.error("Tags vector must be provided")
         return pd.DataFrame(columns=["title_rus", "score", "algo"])
 
-    # Get projects with tags from backend
     projects = get_backend_projects_with_tags()
     if not projects:
         return pd.DataFrame(columns=["title_rus", "score", "algo"])
 
-    # Calculate similarity scores for all projects
     similarities = []
     for project in projects:
-        project_tags = project.get('tags', [])
+        project_tags = project.get("tags", [])
         if project_tags:
             similarity = cosine_similarity_tags(tags_vector, project_tags)
-            similarities.append({
-                'title_rus': project.get('title_rus', 'Untitled'),
-                'score': similarity,
-                'algo': 'tags',
-                'project': project
-            })
+            similarities.append(
+                {
+                    "title_rus": project.get("title_rus", "Untitled"),
+                    "score": similarity,
+                    "algo": "tags",
+                    "project": project,
+                }
+            )
 
     if not similarities:
         return pd.DataFrame(columns=["title_rus", "score", "algo"])
 
-    # Convert to DataFrame and sort by similarity score
     results_df = pd.DataFrame(similarities)
-    results_df = results_df.sort_values('score', ascending=False)
+    results_df = results_df.sort_values("score", ascending=False)
 
-    # Filter by minimum similarity threshold
-    results_df = results_df[results_df['score'] >= settings.MIN_SIMILARITY_THRESHOLD]
+    results_df = results_df[results_df["score"] >= settings.MIN_SIMILARITY_THRESHOLD]
 
-    # Return top_k results
     return results_df.head(top_k)
+
+
+@st.cache_resource(ttl="1h", show_spinner="Loading ALS model...")
+def get_als_model():
+    """Load ALS model for collaborative filtering recommendations"""
+    try:
+        with open(settings.ALS_MODEL_FILE, "rb") as f:
+            als_model_dict = pickle.load(f)
+
+        n_factors = als_model_dict["model_params"].get("n_factors", 5)
+        als_model = ExplicitALS(n_factors=n_factors)
+        als_model.user_factors = als_model_dict["user_factors"]
+        als_model.item_factors = als_model_dict["item_factors"]
+        als_model.user_ids = als_model_dict["user_ids"]
+        als_model.item_ids = als_model_dict["item_ids"]
+        als_model.rated_items = als_model_dict["rated_items"]
+
+        st.info("🎯 ALS model loaded successfully")
+        return als_model
+    except Exception as e:
+        st.error(f"Error loading ALS model: {str(e)}")
+        return None
+
+
+def get_user_ratings(user_id: str) -> dict:
+    """Get all ratings for a specific user"""
+    try:
+        response = make_authenticated_request("GET", "/projects/ratings/all")
+        if response.status_code == 200:
+            all_ratings = response.json()
+            user_ratings = {}
+            for rating in all_ratings:
+                if rating["user_id"] == user_id:
+                    user_ratings[rating["project_id"]] = rating["rating"]
+            return user_ratings
+    except Exception as e:
+        st.error(f"Error fetching user ratings: {str(e)}")
+    return {}
+
+
+def get_highly_rated_projects(top_k: int = None) -> pd.DataFrame:
+    """Get top-k highly rated projects globally"""
+    if top_k is None:
+        top_k = settings.DEFAULT_TOP_K
+
+    try:
+        response = make_authenticated_request("GET", "/projects/ratings/all")
+        if response.status_code != 200:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        all_ratings = response.json()
+        if not all_ratings:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        projects = get_backend_projects_with_embeddings()
+        if not projects:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        projects_map = {p["id"]: p for p in projects}
+
+        project_ratings = {}
+        for rating in all_ratings:
+            project_id = rating["project_id"]
+            if project_id in project_ratings:
+                project_ratings[project_id].append(rating["rating"])
+            else:
+                project_ratings[project_id] = [rating["rating"]]
+
+        project_avg_scores = []
+        for project_id, ratings in project_ratings.items():
+            if project_id in projects_map:
+                avg_rating = np.mean(ratings)
+                project_avg_scores.append(
+                    {
+                        "project": projects_map[project_id],
+                        "score": avg_rating,
+                        "algo": "popular",
+                    }
+                )
+
+        if not project_avg_scores:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        results_df = pd.DataFrame(project_avg_scores)
+        results_df = results_df.sort_values("score", ascending=False)
+        results_df["title_rus"] = results_df["project"].apply(
+            lambda p: p.get("title_rus", "Untitled")
+        )
+
+        return results_df.head(top_k)
+
+    except Exception as e:
+        st.error(f"Error fetching highly rated projects: {str(e)}")
+        return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+
+def get_als_recommendations(als_model: ExplicitALS, user_id: str, top_k: int = None):
+    """
+    Get ALS-based collaborative filtering recommendations for a user.
+
+    Args:
+        als_model: Trained ALS model (ExplicitALS instance)
+        user_id: User ID to get recommendations for
+        top_k: Number of recommendations to return (defaults to settings.DEFAULT_TOP_K)
+
+    Returns:
+        DataFrame with recommended projects sorted by predicted rating
+    """
+    if top_k is None:
+        top_k = settings.DEFAULT_TOP_K
+
+    try:
+        if als_model is None or not hasattr(als_model, "item_factors"):
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        response = make_authenticated_request("GET", "/projects/ratings/all")
+        if response.status_code != 200:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        all_ratings = response.json()
+        if not all_ratings:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        user_ratings = {}
+        for rating in all_ratings:
+            if rating["user_id"] == user_id:
+                user_ratings[rating["project_id"]] = rating["rating"]
+
+        if not user_ratings:
+            return get_highly_rated_projects(top_k)
+
+        projects = get_backend_projects_with_embeddings()
+        if not projects:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        projects_map_by_title = {p["title_rus"]: p for p in projects}
+        projects_map_by_id = {p["id"]: p for p in projects}
+
+        user_ratings_by_item_idx = {}
+        for project_id, rating in user_ratings.items():
+            project = projects_map_by_id.get(project_id)
+            if project and project["title_rus"] in als_model.item_ids:
+                item_idx = als_model.item_ids.index(project["title_rus"])
+                user_ratings_by_item_idx[item_idx] = rating
+
+        if not user_ratings_by_item_idx:
+            return get_highly_rated_projects(top_k)
+
+        rated_project_ids = set(user_ratings.keys())
+
+        recommendations = als_model.recommend_for_new_user(
+            user_ratings_by_item_idx, n_recommendations=top_k * 2
+        )
+
+        results = []
+        seen_projects = set()
+
+        for item_idx, score in recommendations:
+            project_title = als_model.item_ids[item_idx]
+            if project_title in projects_map_by_title:
+                project = projects_map_by_title[project_title]
+                if (
+                    project["id"] not in rated_project_ids
+                    and project["id"] not in seen_projects
+                ):
+                    results.append({"project": project, "score": score, "algo": "als"})
+                    seen_projects.add(project["id"])
+
+            if len(results) >= top_k:
+                break
+
+        if not results:
+            return get_highly_rated_projects(top_k)
+
+        results_df = pd.DataFrame(results)
+        results_df["title_rus"] = results_df["project"].apply(
+            lambda p: p.get("title_rus", "Untitled")
+        )
+
+        return results_df
+
+    except Exception as e:
+        st.error(f"Error generating ALS recommendations: {str(e)}")
+        return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])

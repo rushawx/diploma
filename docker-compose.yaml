@@ -92,6 +92,7 @@ services:
       - EMBEDDINGS_PATH=app/item_embeddings.pkl
       - TITLES_WITH_TAGS_PATH=app/titles_with_tags_dict.pkl
       - TAGS_SET_PATH=app/tags_set.pkl
+      - ARTIFICIAL_PROFILES_PATH=app/artificial_profiles_scores.pkl
 
       # Model configuration
       - TRANSFORMER_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2

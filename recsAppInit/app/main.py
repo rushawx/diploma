@@ -4,6 +4,7 @@ Data and Embeddings Initialization Service
 This service loads project data and generates embeddings
 for the recommendation system on Docker startup.
 """
+
 import logging
 import os
 import pickle
@@ -19,12 +20,11 @@ from dotenv import load_dotenv
 
 
 from config import settings
-from models import Project, User
-
+from models import Project, User, Rating
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -58,8 +58,8 @@ def load_data_from_excel(file_path: str) -> pd.DataFrame:
             return pd.DataFrame()
 
         df = pd.read_excel(file_path, header=0)
-        df = df.fillna('')
-        df = df.drop_duplicates(subset=['title_rus'])
+        df = df.fillna("")
+        df = df.drop_duplicates(subset=["title_rus"])
 
         logger.info(f"Loaded {len(df)} projects from Excel file")
         return df
@@ -80,18 +80,24 @@ def generate_embeddings(df: pd.DataFrame, model: SentenceTransformer) -> np.ndar
             logger.warning("No data to generate embeddings for")
             return np.array([])
 
-        text_data = df['title_rus'].fillna('') + ' ' + df['annotation'].fillna('') + ' '+ df['description'].fillna('')
+        text_data = (
+            df["title_rus"].fillna("")
+            + " "
+            + df["annotation"].fillna("")
+            + " "
+            + df["description"].fillna("")
+        )
         text_data = text_data.replace("\n", " ")
         text_data = text_data.replace("\r", " ")
         text_data = text_data.replace("\t", " ")
 
         embeddings = model.encode(
-            text_data.tolist(),
-            show_progress_bar=True,
-            batch_size=settings.BATCH_SIZE
+            text_data.tolist(), show_progress_bar=True, batch_size=settings.BATCH_SIZE
         )
 
-        logger.info(f"Generated {len(embeddings)} embeddings with shape {embeddings.shape}")
+        logger.info(
+            f"Generated {len(embeddings)} embeddings with shape {embeddings.shape}"
+        )
         return embeddings
 
     except Exception as e:
@@ -102,17 +108,17 @@ def generate_embeddings(df: pd.DataFrame, model: SentenceTransformer) -> np.ndar
 
 
 def insert_projects_to_database(
-    df: pd.DataFrame,
-    embeddings: np.ndarray,
-    session: sessionmaker
+    df: pd.DataFrame, embeddings: np.ndarray, session: sessionmaker
 ) -> int:
     """Insert projects and embeddings into database"""
     try:
         logger.info(f"Inserting {len(df)} projects into database")
 
-        admin_user = session.query(User).filter(
-            User.nick_name == settings.ADMIN_USERNAME
-        ).first()
+        admin_user = (
+            session.query(User)
+            .filter(User.nick_name == settings.ADMIN_USERNAME)
+            .first()
+        )
 
         if not admin_user:
             logger.error(f"Admin user '{settings.ADMIN_USERNAME}' not found")
@@ -168,20 +174,20 @@ def insert_projects_to_database(
 
 
 def load_or_generate_embeddings(
-    df: pd.DataFrame,
-    model: SentenceTransformer,
-    embeddings_path: str
+    df: pd.DataFrame, model: SentenceTransformer, embeddings_path: str
 ) -> np.ndarray:
     """Load existing embeddings or generate new ones"""
     try:
         if not settings.SKIP_EMBEDDING and os.path.exists(embeddings_path):
             logger.info(f"Loading existing embeddings from: {embeddings_path}")
-            with open(embeddings_path, 'rb') as f:
+            with open(embeddings_path, "rb") as f:
                 embeddings = pickle.load(f)
             logger.info(f"Loaded {len(embeddings)} existing embeddings")
             return embeddings
         else:
-            logger.info("Generating new embeddings (SKIP_EMBEDDING=false or embeddings not found)")
+            logger.info(
+                "Generating new embeddings (SKIP_EMBEDDING=false or embeddings not found)"
+            )
             return generate_embeddings(df, model)
 
     except Exception as e:
@@ -189,6 +195,106 @@ def load_or_generate_embeddings(
         if settings.STOP_ON_ERROR:
             raise
         return np.array([])
+
+
+def load_artificial_profiles() -> dict:
+    """Load artificial profiles with project ratings"""
+    try:
+        logger.info(
+            f"Loading artificial profiles from: {settings.ARTIFICIAL_PROFILES_PATH}"
+        )
+        with open(settings.ARTIFICIAL_PROFILES_PATH, "rb") as f:
+            profiles = pickle.load(f)
+        logger.info(f"Loaded {len(profiles)} artificial profiles")
+        return profiles
+    except Exception as e:
+        logger.error(f"Failed to load artificial profiles: {str(e)}")
+        if settings.STOP_ON_ERROR:
+            raise
+        return {}
+
+
+def create_artificial_users_and_ratings(
+    profiles: dict, session: sessionmaker, projects_map: dict
+) -> int:
+    """Create artificial users and their ratings from profiles"""
+    try:
+        logger.info(
+            f"Creating artificial users and ratings from {len(profiles)} profiles"
+        )
+
+        created_count = 0
+        error_count = 0
+
+        for profile_name, profile_ratings in profiles.items():
+            try:
+                existing_user = (
+                    session.query(User).filter(User.nick_name == profile_name).first()
+                )
+                if existing_user:
+                    logger.info(f"User '{profile_name}' already exists, skipping")
+                    continue
+
+                new_user = User(
+                    id=uuid.uuid4(),
+                    nick_name=profile_name,
+                    password="default_password",
+                    user_type="student",
+                )
+                session.add(new_user)
+                session.commit()
+                session.refresh(new_user)
+
+                ratings_count = 0
+                for project_title, rating in profile_ratings.items():
+                    if rating is None:
+                        continue
+
+                    project = projects_map.get(project_title)
+                    if not project:
+                        logger.warning(
+                            f"Project '{project_title}' not found for user '{profile_name}'"
+                        )
+                        continue
+
+                    new_rating = Rating(
+                        id=uuid.uuid4(),
+                        user_id=new_user.id,
+                        project_id=project.id,
+                        rating=rating,
+                    )
+                    session.add(new_rating)
+
+                    project.chosen_by = new_user.id
+
+                    ratings_count += 1
+
+                session.commit()
+                created_count += 1
+                logger.info(
+                    f"Created user '{profile_name}' with {ratings_count} ratings"
+                )
+
+            except Exception as e:
+                error_count += 1
+                logger.error(
+                    f"Failed to create user/ratings for profile '{profile_name}': {str(e)}"
+                )
+                session.rollback()
+
+        logger.info(f"Created {created_count} artificial users with ratings")
+        if error_count > 0:
+            logger.warning(
+                f"Encountered {error_count} errors during user/rating creation"
+            )
+
+        return created_count
+
+    except Exception as e:
+        logger.error(f"Failed to create artificial users and ratings: {str(e)}")
+        if settings.STOP_ON_ERROR:
+            raise
+        return 0
 
 
 def main():
@@ -224,6 +330,15 @@ def main():
 
         with Session() as session:
             inserted_count = insert_projects_to_database(df, embeddings, session)
+
+            projects = session.query(Project).all()
+            projects_map = {project.title_rus: project for project in projects}
+
+            profiles = load_artificial_profiles()
+            if profiles:
+                users_created = create_artificial_users_and_ratings(
+                    profiles, session, projects_map
+                )
 
         logger.info(f"Initialization complete! {inserted_count} projects ready")
 

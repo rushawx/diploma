@@ -15,6 +15,8 @@ from handlers.transformers import (
     get_tags_set,
     tags_search,
     transformer_search,
+    get_als_model,
+    get_als_recommendations,
 )
 
 settings = Settings()
@@ -31,16 +33,16 @@ st.title(settings.APP_TITLE)
 def display_project(project: dict, show_details: bool = False):
     """Display a project in a formatted way"""
     st.markdown(f"### {project.get('title_rus', 'Untitled')}")
-    if project.get('title_eng'):
+    if project.get("title_eng"):
         st.caption(f"🇬🇧 {project.get('title_eng')}")
-    if project.get('annotation'):
+    if project.get("annotation"):
         st.info(f"📝 **Annotation:** {project.get('annotation')}")
-    if project.get('description'):
-        st.text(project.get('description', ''))
+    if project.get("description"):
+        st.text(project.get("description", ""))
     if show_details:
-        if project.get('created_at'):
+        if project.get("created_at"):
             st.caption(f"📅 **Created:** {project.get('created_at')}")
-        if project.get('modified_by'):
+        if project.get("modified_by"):
             st.caption(f"👤 **Modified by:** {project.get('modified_by')}")
 
 
@@ -52,8 +54,10 @@ def claim_project(project_id: int) -> bool:
             st.error("Could not retrieve user profile")
             return False
 
-        user_id = profile.get('id')
-        response = make_authenticated_request("PUT", f"/projects/{project_id}", json={"chosen_by": user_id})
+        user_id = profile.get("id")
+        response = make_authenticated_request(
+            "PUT", f"/projects/{project_id}", json={"chosen_by": user_id}
+        )
 
         if response.status_code == 200:
             st.success("✅ Project claimed successfully!")
@@ -71,6 +75,47 @@ def claim_project(project_id: int) -> bool:
         st.error(f"Error claiming project: {str(e)}")
         return False
 
+
+def rate_project(project_id: str, rating: int) -> bool:
+    """Rate a project (1-5 stars)"""
+    try:
+        profile = get_user_profile()
+        if not profile:
+            st.error("Could not retrieve user profile")
+            return False
+
+        user_id = profile.get("id")
+        response = make_authenticated_request(
+            "POST", "/projects/rate", json={"project_id": project_id, "rating": rating}
+        )
+
+        if response.status_code == 201:
+            st.success(f"✅ Rated project {rating} stars!")
+            return True
+        else:
+            st.error(f"Failed to rate project: {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"Error rating project: {str(e)}")
+        return False
+
+
+def get_project_rating(project_id: str) -> int:
+    """Get current user's rating for a project"""
+    try:
+        profile = get_user_profile()
+        if not profile:
+            return 0
+
+        response = make_authenticated_request("GET", f"/projects/{project_id}/rating")
+        if response.status_code == 200:
+            rating = response.json()
+            return rating.get("rating", 0)
+        return 0
+    except Exception as e:
+        return 0
+
+
 if "model" not in st.session_state:
     st.session_state["model"] = get_model()
     st.success("Model loaded successfully!")
@@ -79,6 +124,7 @@ menu = [
     "Welcome Page",
     "Find Projects by Query",
     "Find Projects by Tags",
+    "Get Collaborative Recommendations",
     "View Available Projects",
     "View Project Details",
     "View My Projects",
@@ -99,37 +145,149 @@ elif choice == "Find Projects by Query":
         if is_token_expired():
             st.warning("Session expired. Please login again.")
         else:
+            profile = get_user_profile()
+            user_id = profile.get("id") if profile else None
+
+            rated_project_ids = set()
+            if user_id:
+                response = make_authenticated_request("GET", "/projects/ratings/all")
+                if response.status_code == 200:
+                    all_ratings = response.json()
+                    for rating in all_ratings:
+                        if rating["user_id"] == user_id:
+                            rated_project_ids.add(rating["project_id"])
+
             model = get_model()
             query = st.text_input("Enter approximate project topic")
             if query:
                 results = transformer_search(model, query)
                 if not results.empty:
-                    st.markdown("### Similar Projects Found")
+                    filtered_results = results[
+                        ~results["project"].apply(
+                            lambda p: p.get("id") in rated_project_ids
+                        )
+                    ]
 
-                    project_options = {f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get('project', {}).get('id') for _, row in results.iterrows()}
+                    if filtered_results.empty:
+                        st.info(
+                            "No new projects found. All similar projects have already been rated."
+                        )
+                    else:
+                        st.markdown("### Similar Projects Found")
 
-                    selected_project_name = st.selectbox("Select a project to claim as yours", list(project_options.keys()))
+                        project_options = {
+                            f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
+                                "project", {}
+                            ).get(
+                                "id"
+                            )
+                            for _, row in filtered_results.iterrows()
+                        }
 
-                    if st.button("Claim Selected Project"):
-                        if selected_project_name:
-                            project_id = project_options[selected_project_name]
-                            if claim_project(project_id):
-                                if st.button("Search for Another Project"):
-                                    st.rerun()
+                        selected_project_name = st.selectbox(
+                            "Select a project to claim as yours",
+                            list(project_options.keys()),
+                        )
 
-                    st.markdown("---")
-                    st.markdown("#### Available Similar Projects:")
-                    for _, row in results.iterrows():
-                        project = row.get('project', {})
-                        st.markdown(f"**{row.get('title_rus', 'Untitled')}** (Similarity: {row.get('score', 0):.2f})")
-                        if project.get('title_eng'):
-                            st.caption(f"🇬🇧 {project.get('title_eng')}")
-                        if project.get('annotation'):
-                            st.info(project.get('annotation'))
-                        st.text(project.get('description', ''))
+                        if st.button("Claim Selected Project"):
+                            if selected_project_name:
+                                project_id = project_options[selected_project_name]
+                                if claim_project(project_id):
+                                    if st.button("Search for Another Project"):
+                                        st.rerun()
+
                         st.markdown("---")
+                        st.markdown("#### Available Similar Projects:")
+                        for _, row in filtered_results.iterrows():
+                            project = row.get("project", {})
+                            st.markdown(
+                                f"**{row.get('title_rus', 'Untitled')}** (Similarity: {row.get('score', 0):.2f})"
+                            )
+                            if project.get("title_eng"):
+                                st.caption(f"🇬🇧 {project.get('title_eng')}")
+                            if project.get("annotation"):
+                                st.info(project.get("annotation"))
+                            st.text(project.get("description", ""))
+                            st.markdown("---")
                 else:
                     st.info("No similar projects found")
+    else:
+        st.warning("Please login to access this feature")
+elif choice == "Get Collaborative Recommendations":
+    st.subheader("Get Collaborative Recommendations")
+    if is_authenticated():
+        if is_token_expired():
+            st.warning("Session expired. Please login again.")
+        else:
+            st.markdown(
+                "Get personalized project recommendations based on collaborative filtering using the ALS model."
+            )
+
+            profile = get_user_profile()
+            if not profile:
+                st.error("Could not retrieve user profile")
+            else:
+                user_id = profile.get("id")
+
+                with st.spinner("Loading ALS model and generating recommendations..."):
+                    als_model = get_als_model()
+
+                    if als_model is not None:
+                        results = get_als_recommendations(als_model, user_id)
+
+                        if not results.empty:
+                            st.success(f"Found {len(results)} recommendations for you")
+
+                            project_options = {
+                                f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
+                                    "project", {}
+                                ).get(
+                                    "id"
+                                )
+                                for _, row in results.iterrows()
+                            }
+
+                            selected_project_name = st.selectbox(
+                                "Select a project to claim as yours",
+                                list(project_options.keys()),
+                            )
+
+                            if st.button("Claim Selected Project"):
+                                if selected_project_name:
+                                    project_id = project_options[selected_project_name]
+                                    if claim_project(project_id):
+                                        if st.button("Get More Recommendations"):
+                                            st.rerun()
+
+                            st.markdown("---")
+                            for _, row in results.iterrows():
+                                project = row.get("project", {})
+                                score = row.get("score", 0)
+                                algo = row.get("algo", "unknown")
+
+                                st.markdown(
+                                    f"### {project.get('title_rus', 'Untitled')}"
+                                )
+                                st.caption(f"🎯 {algo.title()} Score: {score:.2f}")
+
+                                if project.get("title_eng"):
+                                    st.caption(f"🇬🇧 {project.get('title_eng')}")
+
+                                if project.get("annotation"):
+                                    st.info(
+                                        f"📝 **Annotation:** {project.get('annotation')}"
+                                    )
+
+                                if project.get("description"):
+                                    st.text(project.get("description", ""))
+
+                                st.markdown("---")
+                        else:
+                            st.info(
+                                "No recommendations found. Try rating some projects to get personalized recommendations!"
+                            )
+                    else:
+                        st.error("Could not load ALS model")
     else:
         st.warning("Please login to access this feature")
 elif choice == "Find Projects by Tags":
@@ -138,7 +296,21 @@ elif choice == "Find Projects by Tags":
         if is_token_expired():
             st.warning("Session expired. Please login again.")
         else:
-            st.markdown("Select multiple tags to find projects with similar tags using cosine similarity.")
+            profile = get_user_profile()
+            user_id = profile.get("id") if profile else None
+
+            rated_project_ids = set()
+            if user_id:
+                response = make_authenticated_request("GET", "/projects/ratings/all")
+                if response.status_code == 200:
+                    all_ratings = response.json()
+                    for rating in all_ratings:
+                        if rating["user_id"] == user_id:
+                            rated_project_ids.add(rating["project_id"])
+
+            st.markdown(
+                "Select multiple tags to find projects with similar tags using cosine similarity."
+            )
 
             available_tags = get_tags_set()
 
@@ -150,55 +322,102 @@ elif choice == "Find Projects by Tags":
                 selected_tags = st.multiselect(
                     "Select tags (choose one or more)",
                     options=available_tags,
-                    help="Choose multiple tags to find projects with similar tag combinations"
+                    help="Choose multiple tags to find projects with similar tag combinations",
                 )
 
                 if selected_tags:
                     st.write(f"✅ Selected tags: {', '.join(selected_tags)}")
 
-                    if st.button("Find Projects with Similar Tags") or 'tags_search_results' in st.session_state:
+                    if (
+                        st.button("Find Projects with Similar Tags")
+                        or "tags_search_results" in st.session_state
+                    ):
                         if not selected_tags:
                             st.error("Please select at least one tag")
                         else:
-                            with st.spinner("Searching for projects with similar tags..."):
+                            with st.spinner(
+                                "Searching for projects with similar tags..."
+                            ):
                                 tags_vector = compile_tags_vector(selected_tags)
                                 results = tags_search(tags_vector=tags_vector)
-                                st.session_state['tags_search_results'] = results
+                                st.session_state["tags_search_results"] = results
 
                             if not results.empty:
-                                st.success(f"Found {len(results)} projects with similar tags!")
+                                filtered_results = results[
+                                    ~results["project"].apply(
+                                        lambda p: p.get("id") in rated_project_ids
+                                    )
+                                ]
 
-                                project_options = {f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get('project', {}).get('id') for _, row in results.iterrows()}
+                                if filtered_results.empty:
+                                    st.info(
+                                        "No new projects found with these tags. All matching projects have already been rated."
+                                    )
+                                else:
+                                    st.success(
+                                        f"Found {len(filtered_results)} projects with similar tags!"
+                                    )
 
-                                selected_project_name = st.selectbox("Select a project to claim as yours", list(project_options.keys()), key="tags_project_select")
+                                    project_options = {
+                                        f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
+                                            "project", {}
+                                        ).get(
+                                            "id"
+                                        )
+                                        for _, row in filtered_results.iterrows()
+                                    }
 
-                                if st.button("Claim Selected Project", key="tags_claim_button"):
-                                    if selected_project_name:
-                                        project_id = project_options[selected_project_name]
-                                        if claim_project(project_id):
-                                            if st.button("Search for Another Project"):
-                                                if 'tags_search_results' in st.session_state:
-                                                    del st.session_state['tags_search_results']
-                                                st.rerun()
+                                    selected_project_name = st.selectbox(
+                                        "Select a project to claim as yours",
+                                        list(project_options.keys()),
+                                        key="tags_project_select",
+                                    )
 
-                                st.markdown("---")
-                                for _, row in results.iterrows():
-                                    project = row.get('project', {})
-                                    similarity_score = row.get('score', 0)
-
-                                    st.markdown(f"### {project.get('title_rus', 'Untitled')}")
-                                    st.caption(f"🏷️ Tags Similarity: {similarity_score:.2f}")
-
-                                    if project.get('title_eng'):
-                                        st.caption(f"🇬🇧 {project.get('title_eng')}")
-
-                                    if project.get('annotation'):
-                                        st.info(f"📝 **Annotation:** {project.get('annotation')}")
-
-                                    if project.get('description'):
-                                        st.text(project.get('description', ''))
+                                    if st.button(
+                                        "Claim Selected Project",
+                                        key="tags_claim_button",
+                                    ):
+                                        if selected_project_name:
+                                            project_id = project_options[
+                                                selected_project_name
+                                            ]
+                                            if claim_project(project_id):
+                                                if st.button(
+                                                    "Search for Another Project"
+                                                ):
+                                                    if (
+                                                        "tags_search_results"
+                                                        in st.session_state
+                                                    ):
+                                                        del st.session_state[
+                                                            "tags_search_results"
+                                                        ]
+                                                    st.rerun()
 
                                     st.markdown("---")
+                                    for _, row in filtered_results.iterrows():
+                                        project = row.get("project", {})
+                                        similarity_score = row.get("score", 0)
+
+                                        st.markdown(
+                                            f"### {project.get('title_rus', 'Untitled')}"
+                                        )
+                                        st.caption(
+                                            f"🏷️ Tags Similarity: {similarity_score:.2f}"
+                                        )
+
+                                        if project.get("title_eng"):
+                                            st.caption(f"🇬🇧 {project.get('title_eng')}")
+
+                                        if project.get("annotation"):
+                                            st.info(
+                                                f"📝 **Annotation:** {project.get('annotation')}"
+                                            )
+
+                                        if project.get("description"):
+                                            st.text(project.get("description", ""))
+
+                                        st.markdown("---")
                             else:
                                 st.info("No projects found with similar tags")
                 else:
@@ -233,13 +452,20 @@ elif choice == "View Project Details":
             if projects_response.status_code == 200:
                 all_projects = projects_response.json()
                 if all_projects:
-                    project_options = {p.get('title_rus', 'Untitled'): p.get('id') for p in all_projects}
-                    selected_project = st.selectbox("Select a project to view details", list(project_options.keys()))
+                    project_options = {
+                        p.get("title_rus", "Untitled"): p.get("id")
+                        for p in all_projects
+                    }
+                    selected_project = st.selectbox(
+                        "Select a project to view details", list(project_options.keys())
+                    )
 
                     if selected_project:
                         project_id = project_options[selected_project]
                         try:
-                            response = make_authenticated_request("GET", f"/projects/{project_id}")
+                            response = make_authenticated_request(
+                                "GET", f"/projects/{project_id}"
+                            )
                             if response.status_code == 200:
                                 project = response.json()
                                 st.markdown(f"## 📋 Project Details")
@@ -247,13 +473,17 @@ elif choice == "View Project Details":
                             elif response.status_code == 404:
                                 st.error("Project not found")
                             else:
-                                st.error(f"Failed to fetch project: {response.status_code}")
+                                st.error(
+                                    f"Failed to fetch project: {response.status_code}"
+                                )
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
                 else:
                     st.info("No projects available to select")
             else:
-                st.error(f"Failed to fetch projects list: {projects_response.status_code}")
+                st.error(
+                    f"Failed to fetch projects list: {projects_response.status_code}"
+                )
         except Exception as e:
             st.error(f"Error: {str(e)}")
     else:
@@ -264,15 +494,44 @@ elif choice == "View My Projects":
         try:
             profile = get_user_profile()
             if profile:
-                user_id = profile.get('id')
+                user_id = profile.get("id")
                 if user_id:
-                    response = make_authenticated_request("GET", f"/projects/user/{user_id}")
+                    response = make_authenticated_request(
+                        "GET", f"/projects/user/{user_id}"
+                    )
                     if response.status_code == 200:
                         projects = response.json()
                         if projects:
                             st.success(f"Found {len(projects)} projects for you")
                             for project in projects:
                                 display_project(project)
+
+                                project_id = project.get("id")
+                                current_rating = get_project_rating(project_id)
+
+                                st.markdown("### Rate this Project")
+                                col1, col2 = st.columns([3, 1])
+
+                                with col1:
+                                    new_rating = st.slider(
+                                        "Your Rating",
+                                        min_value=1,
+                                        max_value=5,
+                                        value=(
+                                            current_rating if current_rating > 0 else 3
+                                        ),
+                                        step=1,
+                                        key=f"rating_{project_id}",
+                                    )
+
+                                with col2:
+                                    if st.button(
+                                        "Submit Rating",
+                                        key=f"submit_rating_{project_id}",
+                                    ):
+                                        if rate_project(project_id, new_rating):
+                                            st.rerun()
+
                                 st.markdown("---")
                         else:
                             st.info("No projects found for your account")
@@ -291,10 +550,19 @@ elif choice == "Create Project":
     if is_authenticated():
         st.markdown("Fill in the project details below:")
 
-        title_rus = st.text_input("Project Title (Russian)*", placeholder="Введите название проекта на русском")
-        title_eng = st.text_input("Project Title (English)", placeholder="Enter project title in English")
-        annotation = st.text_area("Annotation", placeholder="Short description or summary")
-        description = st.text_area("Full Description", placeholder="Detailed description of the project")
+        title_rus = st.text_input(
+            "Project Title (Russian)*",
+            placeholder="Введите название проекта на русском",
+        )
+        title_eng = st.text_input(
+            "Project Title (English)", placeholder="Enter project title in English"
+        )
+        annotation = st.text_area(
+            "Annotation", placeholder="Short description or summary"
+        )
+        description = st.text_area(
+            "Full Description", placeholder="Detailed description of the project"
+        )
 
         if st.button("Create Project"):
             if not title_rus:
@@ -309,7 +577,11 @@ elif choice == "Create Project":
                     if description:
                         text_data += " " + description
 
-                    text_data = text_data.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+                    text_data = (
+                        text_data.replace("\n", " ")
+                        .replace("\r", " ")
+                        .replace("\t", " ")
+                    )
 
                     embedding = model.encode([text_data])[0].tolist()
 
@@ -326,9 +598,7 @@ elif choice == "Create Project":
 
                 try:
                     response = make_authenticated_request(
-                        "POST",
-                        "/projects/",
-                        json=project_data
+                        "POST", "/projects/", json=project_data
                     )
 
                     if response.status_code == 201:
@@ -341,32 +611,42 @@ elif choice == "Create Project":
                     else:
                         st.error(f"Failed to create project: {response.status_code}")
                         if response.text:
-                            st.error(response.json().get('detail', 'Unknown error'))
+                            st.error(response.json().get("detail", "Unknown error"))
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
     else:
         st.warning("Please login to access this feature")
 elif choice == "Signup":
     st.subheader("Signup")
-    st.markdown("Create your account to start using the Student Projects Recommender System")
+    st.markdown(
+        "Create your account to start using the Student Projects Recommender System"
+    )
 
     with st.form("signup_form"):
         st.markdown("### Required Fields")
         nick_name = st.text_input("Username*", placeholder="Choose a unique username")
-        password = st.text_input("Password*", type="password", help="Enter a strong password")
+        password = st.text_input(
+            "Password*", type="password", help="Enter a strong password"
+        )
 
         st.markdown("### Personal Information")
         first_name = st.text_input("First Name", placeholder="Your first name")
-        middle_name = st.text_input("Middle Name", placeholder="Your middle name (if applicable)")
+        middle_name = st.text_input(
+            "Middle Name", placeholder="Your middle name (if applicable)"
+        )
         last_name = st.text_input("Last Name", placeholder="Your last name")
 
         st.markdown("### Contact Information")
-        email_address = st.text_input("Email Address", placeholder="your.email@example.com")
+        email_address = st.text_input(
+            "Email Address", placeholder="your.email@example.com"
+        )
         phone_number = st.text_input("Phone Number", placeholder="+7 (999) 123-45-67")
 
         st.markdown("### Additional Information")
         user_type = st.selectbox("User Type", ["student", "teacher", "admin"], index=0)
-        self_bio = st.text_area("About Yourself", placeholder="Tell us a bit about yourself...", height=100)
+        self_bio = st.text_area(
+            "About Yourself", placeholder="Tell us a bit about yourself...", height=100
+        )
 
         submitted = st.form_submit_button("Sign Up")
 
@@ -374,10 +654,7 @@ elif choice == "Signup":
             if not nick_name or not password:
                 st.error("Please fill in all required fields (marked with *)")
             else:
-                user_data = {
-                    "nick_name": nick_name,
-                    "password": password
-                }
+                user_data = {"nick_name": nick_name, "password": password}
 
                 if first_name:
                     user_data["first_name"] = first_name
@@ -418,32 +695,41 @@ elif choice == "Profile":
             with col1:
                 st.markdown("### Basic Information")
                 st.info(f"**Username:** {profile.get('nick_name', 'N/A')}")
-                if profile.get('first_name') or profile.get('middle_name') or profile.get('last_name'):
-                    full_name = " ".join(filter(None, [
-                        profile.get('first_name', ''),
-                        profile.get('middle_name', ''),
-                        profile.get('last_name', '')
-                    ]))
+                if (
+                    profile.get("first_name")
+                    or profile.get("middle_name")
+                    or profile.get("last_name")
+                ):
+                    full_name = " ".join(
+                        filter(
+                            None,
+                            [
+                                profile.get("first_name", ""),
+                                profile.get("middle_name", ""),
+                                profile.get("last_name", ""),
+                            ],
+                        )
+                    )
                     st.info(f"**Full Name:** {full_name}")
-                if profile.get('user_type'):
+                if profile.get("user_type"):
                     st.info(f"**User Type:** {profile.get('user_type', 'N/A').title()}")
 
             with col2:
                 st.markdown("### Contact Information")
-                if profile.get('email_address'):
+                if profile.get("email_address"):
                     st.info(f"**Email:** {profile.get('email_address')}")
-                if profile.get('phone_number'):
+                if profile.get("phone_number"):
                     st.info(f"**Phone:** {profile.get('phone_number')}")
 
-            if profile.get('self_bio'):
+            if profile.get("self_bio"):
                 st.markdown("### About Me")
-                st.text(profile.get('self_bio'))
+                st.text(profile.get("self_bio"))
 
             st.markdown("---")
             st.markdown("### Account Details")
-            if profile.get('created_at'):
+            if profile.get("created_at"):
                 st.caption(f"📅 **Member Since:** {profile.get('created_at')}")
-            if profile.get('updated_at'):
+            if profile.get("updated_at"):
                 st.caption(f"🔄 **Last Updated:** {profile.get('updated_at')}")
         else:
             st.error("Could not load profile")

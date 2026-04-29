@@ -29,8 +29,13 @@ class Settings:
     # Data Configuration
     DATA_PATH: str = os.getenv("DATA_PATH", "data.xlsx")
     EMBEDDINGS_PATH: str = os.getenv("EMBEDDINGS_PATH", "item_embeddings.pkl")
-    TITLES_WITH_TAGS_PATH: str = os.getenv("TITLES_WITH_TAGS_PATH", "titles_with_tags_dict.pkl")
+    TITLES_WITH_TAGS_PATH: str = os.getenv(
+        "TITLES_WITH_TAGS_PATH", "titles_with_tags_dict.pkl"
+    )
     TAGS_SET_PATH: str = os.getenv("TAGS_SET_PATH", "tags_set.pkl")
+    ARTIFICIAL_PROFILES_PATH: str = os.getenv(
+        "ARTIFICIAL_PROFILES_PATH", "artificial_profiles_scores.pkl"
+    )
 
     # Vector Configuration
     EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))
@@ -44,14 +49,10 @@ class Settings:
 
     # Validation Configuration
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "100"))
-    SKIP_EMBEDDING: bool = (
-        os.getenv("SKIP_EMBEDDING", "false").lower() == "true"
-    )
+    SKIP_EMBEDDING: bool = os.getenv("SKIP_EMBEDDING", "false").lower() == "true"
 
     # Error Handling
-    STOP_ON_ERROR: bool = (
-        os.getenv("STOP_ON_ERROR", "false").lower() == "true"
-    )
+    STOP_ON_ERROR: bool = os.getenv("STOP_ON_ERROR", "false").lower() == "true"
 
     # Admin Configuration
     ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "SYSTEM")

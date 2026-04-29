@@ -11,14 +11,14 @@ class ProjectBase(BaseModel):
     description: Optional[str] = None
     embedding: Optional[List[float]] = None
 
-    @field_validator('embedding', mode='before')
+    @field_validator("embedding", mode="before")
     @classmethod
     def parse_embedding(cls, v: Any) -> Optional[List[float]]:
         if v is None:
             return None
         if isinstance(v, list):
             return v
-        if hasattr(v, 'tolist'):
+        if hasattr(v, "tolist"):
             return v.tolist()
         return list(v)
 
@@ -49,6 +49,7 @@ class ProjectResponse(ProjectBase):
 
 class ProjectListResponse(BaseModel):
     """Simplified response model for project listings"""
+
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
@@ -62,6 +63,7 @@ class ProjectListResponse(BaseModel):
 
 class ProjectWithEmbedding(BaseModel):
     """Project model with embedding for similarity search"""
+
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
@@ -75,12 +77,36 @@ class ProjectWithEmbedding(BaseModel):
 
 class ProjectWithTags(BaseModel):
     """Project model with tags vector for tag-based similarity search"""
+
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
     annotation: Optional[str] = None
     description: Optional[str] = None
     tags: List[float]
+
+    class Config:
+        from_attributes = True
+
+
+class RatingBase(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+
+
+class RatingCreate(RatingBase):
+    project_id: uuid.UUID
+
+
+class RatingUpdate(RatingBase):
+    pass
+
+
+class RatingResponse(RatingBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    project_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

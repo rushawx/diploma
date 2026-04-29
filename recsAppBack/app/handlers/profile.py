@@ -52,6 +52,10 @@ async def get_profile(current_user: User = Depends(get_current_active_user)):
         "phone_number": current_user.phone_number,
         "self_bio": current_user.self_bio,
         "user_type": current_user.user_type,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
-        "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
+        "created_at": (
+            current_user.created_at.isoformat() if current_user.created_at else None
+        ),
+        "updated_at": (
+            current_user.updated_at.isoformat() if current_user.updated_at else None
+        ),
     }
