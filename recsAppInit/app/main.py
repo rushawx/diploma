@@ -7,6 +7,7 @@ for the recommendation system on Docker startup.
 
 import logging
 import os
+import json
 import pickle
 import uuid
 from typing import List
@@ -226,6 +227,12 @@ def create_artificial_users_and_ratings(
         created_count = 0
         error_count = 0
 
+        with open(settings.PROFILES_PATH, "r") as f:
+            profiles_with_tags = json.load(f)
+        profiles_with_bio = {}
+        for tag in profiles_with_tags:
+            profiles_with_bio.update(profiles_with_tags[tag])
+
         for profile_name, profile_ratings in profiles.items():
             try:
                 existing_user = (
@@ -240,6 +247,8 @@ def create_artificial_users_and_ratings(
                     nick_name=profile_name,
                     password="default_password",
                     user_type="student",
+                    self_bio=profiles_with_bio.get(profile_name)
+
                 )
                 session.add(new_user)
                 session.commit()

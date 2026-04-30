@@ -93,10 +93,12 @@ services:
       - TITLES_WITH_TAGS_PATH=app/titles_with_tags_dict.pkl
       - TAGS_SET_PATH=app/tags_set.pkl
       - ARTIFICIAL_PROFILES_PATH=app/artificial_profiles_scores.pkl
+      - PROFILES_PATH=app/artificial_profiles.json
 
       # Model configuration
       - TRANSFORMER_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
       - EMBEDDING_DIMENSION=384
+      - TAGS_VECTOR_DIMENSION=1905
 
       # Processing configuration
       - BATCH_SIZE=100

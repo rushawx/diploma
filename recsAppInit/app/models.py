@@ -31,6 +31,7 @@ class User(Base):
     nick_name = Column(String(128), nullable=False, unique=True)
     password = Column(String, nullable=False)
     user_type = Column(String(50), default="student")
+    self_bio = Column(String, unique=False)
     created_at = Column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
     )

@@ -36,10 +36,13 @@ class Settings:
     ARTIFICIAL_PROFILES_PATH: str = os.getenv(
         "ARTIFICIAL_PROFILES_PATH", "artificial_profiles_scores.pkl"
     )
+    PROFILES_PATH: str = os.getenv(
+        "PROFILES_PATH", "artificial_profiles.json"
+    )
 
     # Vector Configuration
     EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))
-    TAGS_VECTOR_DIMENSION: int = int(os.getenv("TAGS_VECTOR_DIMENSION", "1914"))
+    TAGS_VECTOR_DIMENSION: int = int(os.getenv("TAGS_VECTOR_DIMENSION", "1905"))
 
     # Model Configuration
     TRANSFORMER_MODEL: str = os.getenv(
