@@ -28,6 +28,7 @@ WORKDIR /app
 # Install runtime dependencies only (keep image small)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder

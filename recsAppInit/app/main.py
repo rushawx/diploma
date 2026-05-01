@@ -228,10 +228,7 @@ def create_artificial_users_and_ratings(
         error_count = 0
 
         with open(settings.PROFILES_PATH, "r") as f:
-            profiles_with_tags = json.load(f)
-        profiles_with_bio = {}
-        for tag in profiles_with_tags:
-            profiles_with_bio.update(profiles_with_tags[tag])
+            profiles_with_bio = json.load(f)
 
         for profile_name, profile_ratings in profiles.items():
             try:
@@ -273,8 +270,6 @@ def create_artificial_users_and_ratings(
                         rating=rating,
                     )
                     session.add(new_rating)
-
-                    project.chosen_by = new_user.id
 
                     ratings_count += 1
 

@@ -1,5 +1,6 @@
 import pickle
 
+import implicit
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,7 +9,6 @@ from handlers.transformers_config import get_torch_device
 from handlers.auth_helpers import make_authenticated_request
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from app.als_explicit import ExplicitALS
 
 settings = Settings()
 
@@ -36,7 +36,7 @@ def get_tags_set():
     try:
         with open(settings.TAGS_SET_FILE, "rb") as f:
             tags_set = pickle.load(f)
-        return sorted(list(tags_set))  # Return as sorted list for consistent display
+        return sorted(list(tags_set))
     except Exception as e:
         st.error(f"Error loading tags set: {str(e)}")
         return []
@@ -220,15 +220,17 @@ def get_als_model():
     """Load ALS model for collaborative filtering recommendations"""
     try:
         with open(settings.ALS_MODEL_FILE, "rb") as f:
-            als_model_dict = pickle.load(f)
+            model_data = pickle.load(f)
 
-        n_factors = als_model_dict["model_params"].get("n_factors", 5)
-        als_model = ExplicitALS(n_factors=n_factors)
-        als_model.user_factors = als_model_dict["user_factors"]
-        als_model.item_factors = als_model_dict["item_factors"]
-        als_model.user_ids = als_model_dict["user_ids"]
-        als_model.item_ids = als_model_dict["item_ids"]
-        als_model.rated_items = als_model_dict["rated_items"]
+        if isinstance(model_data, dict):
+            als_model = model_data["model"]
+            als_model.user_ids = model_data["user_ids"]
+            als_model.item_ids = model_data["item_ids"]
+            als_model.user_ratings = model_data.get("user_ratings", {})
+            als_model.model_params = model_data.get("model_params", {})
+            als_model.performance = model_data.get("performance", {})
+        else:
+            als_model = model_data
 
         st.info("🎯 ALS model loaded successfully")
         return als_model
@@ -309,12 +311,12 @@ def get_highly_rated_projects(top_k: int = None) -> pd.DataFrame:
         return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
 
 
-def get_als_recommendations(als_model: ExplicitALS, user_id: str, top_k: int = None):
+def get_als_recommendations(als_model, user_id: str, top_k: int = None):
     """
     Get ALS-based collaborative filtering recommendations for a user.
 
     Args:
-        als_model: Trained ALS model (ExplicitALS instance)
+        als_model: Trained ALS model (implicit.als.AlternatingLeastSquares instance)
         user_id: User ID to get recommendations for
         top_k: Number of recommendations to return (defaults to settings.DEFAULT_TOP_K)
 
@@ -344,6 +346,13 @@ def get_als_recommendations(als_model: ExplicitALS, user_id: str, top_k: int = N
         if not user_ratings:
             return get_highly_rated_projects(top_k)
 
+        if len(user_ratings) < 3:
+            st.info(
+                f"ℹ️ Need at least 3 ratings for personalized ALS recommendations "
+                f"(current: {len(user_ratings)})"
+            )
+            return get_highly_rated_projects(top_k)
+
         projects = get_backend_projects_with_embeddings()
         if not projects:
             return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
@@ -361,28 +370,63 @@ def get_als_recommendations(als_model: ExplicitALS, user_id: str, top_k: int = N
         if not user_ratings_by_item_idx:
             return get_highly_rated_projects(top_k)
 
-        rated_project_ids = set(user_ratings.keys())
+        from scipy.sparse import csr_matrix
 
-        recommendations = als_model.recommend_for_new_user(
-            user_ratings_by_item_idx, n_recommendations=top_k * 2
+        row_indices = [0] * len(user_ratings_by_item_idx)
+        col_indices = list(user_ratings_by_item_idx.keys())
+        data = list(user_ratings_by_item_idx.values())
+
+        user_items = csr_matrix(
+            (data, (row_indices, col_indices)),
+            shape=(1, len(als_model.item_ids))
         )
 
-        results = []
-        seen_projects = set()
+        from handlers.auth_helpers import get_user_profile
+        user_profile = get_user_profile()
+        user_nick_name = user_profile.get("nick_name") if user_profile else None
+        user_in_model = user_nick_name in als_model.user_ids if user_nick_name else False
 
-        for item_idx, score in recommendations:
+        if user_in_model:
+            # Use existing user factors for artificial users in model
+            user_idx = als_model.user_ids.index(user_nick_name)
+
+            # Use actual training ratings from user_ratings
+            if user_idx in als_model.user_ratings:
+                original_ratings = als_model.user_ratings[user_idx]
+                row_indices = [0] * len(original_ratings)
+                col_indices = list(original_ratings.keys())
+                data = list(original_ratings.values())
+
+                original_user_items = csr_matrix(
+                    (data, (row_indices, col_indices)),
+                    shape=(1, len(als_model.item_ids))
+                )
+            else:
+                # Fallback: create user_items from DB ratings
+                original_user_items = user_items
+
+            recommendations = als_model.recommend(
+                userid=user_idx,
+                user_items=original_user_items,
+                N=top_k,
+                filter_already_liked_items=True,
+                recalculate_user=False
+            )
+        else:
+            recommendations = als_model.recommend(
+                userid=0,
+                user_items=user_items,
+                N=top_k,
+                filter_already_liked_items=True,
+                recalculate_user=True
+            )
+
+        results = []
+        for item_idx, score in zip(recommendations[0], recommendations[1]):
             project_title = als_model.item_ids[item_idx]
             if project_title in projects_map_by_title:
                 project = projects_map_by_title[project_title]
-                if (
-                    project["id"] not in rated_project_ids
-                    and project["id"] not in seen_projects
-                ):
-                    results.append({"project": project, "score": score, "algo": "als"})
-                    seen_projects.add(project["id"])
-
-            if len(results) >= top_k:
-                break
+                results.append({"project": project, "score": float(score), "algo": "als"})
 
         if not results:
             return get_highly_rated_projects(top_k)

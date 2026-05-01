@@ -8,6 +8,7 @@ streamlit==1.56.0
 numpy==2.4.4
 pandas==3.0.2
 scikit-learn==1.8.0
+implicit==0.7.2
 
 # Sentence Transformers (CPU-optimized)
 sentence-transformers==5.4.1
