@@ -244,8 +244,7 @@ def create_artificial_users_and_ratings(
                     nick_name=profile_name,
                     password="default_password",
                     user_type="student",
-                    self_bio=profiles_with_bio.get(profile_name)
-
+                    self_bio=profiles_with_bio.get(profile_name),
                 )
                 session.add(new_user)
                 session.commit()

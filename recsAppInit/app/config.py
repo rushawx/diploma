@@ -36,9 +36,7 @@ class Settings:
     ARTIFICIAL_PROFILES_PATH: str = os.getenv(
         "ARTIFICIAL_PROFILES_PATH", "artificial_profiles_scores.pkl"
     )
-    PROFILES_PATH: str = os.getenv(
-        "PROFILES_PATH", "artificial_profiles.json"
-    )
+    PROFILES_PATH: str = os.getenv("PROFILES_PATH", "artificial_profiles.json")
 
     # Vector Configuration
     EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))

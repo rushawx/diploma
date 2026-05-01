@@ -83,7 +83,9 @@ class Settings:
 
     @property
     def ALS_MODEL_FILE(self) -> str:
-        return self._get_secret("ALS_MODEL_FILE", "app/resources/als_model_implicit.pkl")
+        return self._get_secret(
+            "ALS_MODEL_FILE", "app/resources/als_model_implicit.pkl"
+        )
 
     @property
     def DATA_CACHE_TTL(self) -> str:

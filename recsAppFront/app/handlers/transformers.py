@@ -377,14 +377,16 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
         data = list(user_ratings_by_item_idx.values())
 
         user_items = csr_matrix(
-            (data, (row_indices, col_indices)),
-            shape=(1, len(als_model.item_ids))
+            (data, (row_indices, col_indices)), shape=(1, len(als_model.item_ids))
         )
 
         from handlers.auth_helpers import get_user_profile
+
         user_profile = get_user_profile()
         user_nick_name = user_profile.get("nick_name") if user_profile else None
-        user_in_model = user_nick_name in als_model.user_ids if user_nick_name else False
+        user_in_model = (
+            user_nick_name in als_model.user_ids if user_nick_name else False
+        )
 
         if user_in_model:
             # Use existing user factors for artificial users in model
@@ -399,7 +401,7 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
 
                 original_user_items = csr_matrix(
                     (data, (row_indices, col_indices)),
-                    shape=(1, len(als_model.item_ids))
+                    shape=(1, len(als_model.item_ids)),
                 )
             else:
                 # Fallback: create user_items from DB ratings
@@ -410,7 +412,7 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
                 user_items=original_user_items,
                 N=top_k,
                 filter_already_liked_items=True,
-                recalculate_user=False
+                recalculate_user=False,
             )
         else:
             recommendations = als_model.recommend(
@@ -418,7 +420,7 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
                 user_items=user_items,
                 N=top_k,
                 filter_already_liked_items=True,
-                recalculate_user=True
+                recalculate_user=True,
             )
 
         results = []
@@ -426,7 +428,9 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
             project_title = als_model.item_ids[item_idx]
             if project_title in projects_map_by_title:
                 project = projects_map_by_title[project_title]
-                results.append({"project": project, "score": float(score), "algo": "als"})
+                results.append(
+                    {"project": project, "score": float(score), "algo": "als"}
+                )
 
         if not results:
             return get_highly_rated_projects(top_k)
