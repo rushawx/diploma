@@ -10,3 +10,6 @@ transformers>=4.20.0
 tqdm>=4.64.0
 openpyxl>=3.0.0
 git+https://github.com/daviddavo/lightfm
+implicit==0.7.2
+accelerate==1.13.0
+torchvision==0.26.0
