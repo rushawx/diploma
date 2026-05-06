@@ -1,3 +1,4 @@
+import copyreg
 import pickle
 
 import implicit
@@ -213,6 +214,87 @@ def tags_search(tags_vector: list, top_k: int = None):
     results_df = results_df[results_df["score"] >= settings.MIN_SIMILARITY_THRESHOLD]
 
     return results_df.head(top_k)
+
+
+@st.cache_resource(ttl="1h", show_spinner="Loading LightFM model...")
+def get_lightfm_model():
+    """Load LightFM model for avatar-based recommendations"""
+    try:
+        # Register the LightFM4Rec class so pickle can find it
+        # The pickle file was saved with the class in __main__ namespace
+        import sys
+        if "__main__" not in sys.modules:
+            sys.modules["__main__"] = type(sys)("__main__")
+        sys.modules["__main__"].LightFM4Rec = LightFM4Rec
+
+        with open(settings.LIGHTFM_MODEL_FILE, "rb") as f:
+            model_wrapper = pickle.load(f)
+
+        st.info("🎯 LightFM model loaded successfully")
+        return model_wrapper
+    except Exception as e:
+        st.error(f"Error loading LightFM model: {str(e)}")
+        return None
+
+
+class LightFM4Rec:
+    def __init__(self, model, user_mapping, item_mapping, inv_user_mapping, inv_item_mapping, user_col, item_col, rating_col):
+        self.model = model
+        self.user_mapping = user_mapping
+        self.item_mapping = item_mapping
+        self.inv_user_mapping = inv_user_mapping
+        self.inv_item_mapping = inv_item_mapping
+        self.user_col = user_col
+        self.item_col = item_col
+        self.rating_col = rating_col
+    
+    def fit(self, rating_matrix, train_interactions, user_features=None, item_features=None, epochs=16):
+        self.user_features = user_features
+        self.item_features = item_features
+        self.train_interactions = train_interactions
+        self.model.fit(
+            rating_matrix,
+            user_features=self.user_features,
+            item_features=self.item_features,
+            epochs=epochs,
+        )
+    
+    def _get_lfm_pred(self, user_id):
+        pred = self.model.predict(
+            user_ids=user_id,
+            item_ids=self.item_ids,
+            user_features=self.user_features,
+            item_features=self.item_features,
+        )
+        return pred
+
+    def predict(self, test, interaction_matrix, user_col, filter_seen=True, k=10):
+        user_ids = test[self.user_col].map(self.user_mapping).unique()
+        self.item_ids = list(self.item_mapping.values())
+    
+        pred = pd.DataFrame(user_ids, columns=[user_col])
+        scores = np.vstack(pred[user_col].apply(self._get_lfm_pred).values)
+
+        if filter_seen:
+            scores += np.nan_to_num(interaction_matrix.todense()[user_ids] * -np.inf)
+        
+        ind_part = np.argpartition(scores, -k)[:, -k:].copy()
+        scores_not_sorted = np.take_along_axis(scores, ind_part, axis=1)
+        ind_sorted = np.argsort(scores_not_sorted, axis=1)
+        scores_sorted = np.sort(scores_not_sorted, axis=1)
+        indices = np.take_along_axis(ind_part, ind_sorted, axis=1)
+
+        preds = pd.DataFrame(
+            {
+                self.user_col: user_ids,
+                self.item_col: np.flip(indices, axis=1).tolist(),
+                self.rating_col: np.flip(scores_sorted, axis=1).tolist(),
+            }
+        ).explode([self.item_col, self.rating_col])
+        preds[self.user_col] = preds[self.user_col].map(self.inv_user_mapping)
+        preds[self.item_col] = preds[self.item_col].map(self.inv_item_mapping)
+        
+        return preds
 
 
 @st.cache_resource(ttl="1h", show_spinner="Loading ALS model...")
@@ -444,4 +526,89 @@ def get_als_recommendations(als_model, user_id: str, top_k: int = None):
 
     except Exception as e:
         st.error(f"Error generating ALS recommendations: {str(e)}")
+        return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+
+def get_lightfm_recommendations(
+    lightfm_model, avatar_nick_name: str, real_user_id: str, top_k: int = None
+):
+    """
+    Get LightFM-based recommendations using the user's avatar.
+
+    Args:
+        lightfm_model: Trained LightFM model wrapper
+        avatar_nick_name: Nickname of the avatar to use for recommendations
+        real_user_id: Real user ID to filter out seen/rated projects
+        top_k: Number of recommendations to return (defaults to settings.DEFAULT_TOP_K)
+
+    Returns:
+        DataFrame with recommended projects sorted by predicted score
+    """
+    if top_k is None:
+        top_k = settings.DEFAULT_TOP_K
+
+    try:
+        if lightfm_model is None:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        # Get real user's rated projects to filter out
+        rated_project_ids = set()
+        response = make_authenticated_request("GET", "/projects/ratings/all")
+        if response.status_code == 200:
+            all_ratings = response.json()
+            for rating in all_ratings:
+                if rating["user_id"] == real_user_id:
+                    rated_project_ids.add(rating["project_id"])
+
+        # Get projects from backend
+        projects = get_backend_projects_with_embeddings()
+        if not projects:
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        projects_map_by_title = {p["title_rus"]: p for p in projects}
+
+        # Check if avatar is in the model
+        if avatar_nick_name not in lightfm_model.user_mapping:
+            st.warning(f"Avatar '{avatar_nick_name}' not found in model")
+            return get_highly_rated_projects(top_k)
+
+        # Get predictions for all items using the avatar
+        predictions = lightfm_model.predict(
+            test=pd.DataFrame(
+                {"user_name": [avatar_nick_name]}
+            ),
+            interaction_matrix=lightfm_model.train_interactions,
+            user_col="user_name",
+            filter_seen=False,
+        )
+
+        # Convert predictions to list and filter out real user's rated projects
+        results = []
+        for _, row in predictions.iterrows():
+            project_title = row["item_title"]
+            if project_title in projects_map_by_title:
+                project = projects_map_by_title[project_title]
+                if project["id"] not in rated_project_ids:
+                    results.append(
+                        {
+                            "project": project,
+                            "score": row["rating"],
+                            "algo": "lightfm",
+                        }
+                    )
+
+        if not results:
+            st.info("No new recommendations available")
+            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
+
+        results_df = pd.DataFrame(results)
+        results_df = results_df.sort_values("score", ascending=False)
+        results_df["title_rus"] = results_df["project"].apply(
+            lambda p: p.get("title_rus", "Untitled")
+        )
+
+        return results_df.head(top_k)
+
+    except Exception as e:
+        st.error(f"Error generating LightFM recommendations: {str(e)}")
         return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])

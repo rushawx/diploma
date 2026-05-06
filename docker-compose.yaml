@@ -94,11 +94,12 @@ services:
       - TAGS_SET_PATH=app/tags_set.pkl
       - ARTIFICIAL_PROFILES_PATH=app/artificial_profiles_scores.pkl
       - PROFILES_PATH=app/artificial_profiles.json
+      - LIGHTFM_MODEL_FILE=app/resources/lightfm_sber_model.pkl
 
       # Model configuration
       - TRANSFORMER_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
       - EMBEDDING_DIMENSION=384
-      - TAGS_VECTOR_DIMENSION=1905
+      - TAGS_VECTOR_DIMENSION=1861
 
       # Processing configuration
       - BATCH_SIZE=100

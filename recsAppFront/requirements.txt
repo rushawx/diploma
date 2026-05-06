@@ -10,6 +10,12 @@ pandas==3.0.2
 scikit-learn==1.8.0
 implicit==0.7.2
 
+# Note: LightFM model is expected to be pre-built in app/resources/
+# The lightfm package is included in git repository for reference only
+# To use pre-built model, download lightfm-<version>-cp310-cp310-none-any.whl
+# and place it in app/resources/ directory
+rectools-lightfm
+
 # Sentence Transformers (CPU-optimized)
 sentence-transformers==5.4.1
 

@@ -8,6 +8,8 @@ from app.db.engine import Base, engine
 from app.handlers.profile import router as profile_router
 from app.handlers.projects import router as projects_router
 from app.handlers.users import router as users_router
+from app.handlers.avatars import router as avatars_router
+from app.handlers.tags import router as tags_router
 from app.models.users import User
 from app.utils.utils import init_superuser
 from fastapi import Depends, FastAPI, HTTPException, Request, status
@@ -69,6 +71,8 @@ async def log_requests(request: Request, call_next):
 app.include_router(projects_router)
 app.include_router(users_router)
 app.include_router(profile_router)
+app.include_router(avatars_router)
+app.include_router(tags_router)
 
 Base.metadata.create_all(bind=engine)
 

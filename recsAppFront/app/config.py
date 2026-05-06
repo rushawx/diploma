@@ -88,6 +88,12 @@ class Settings:
         )
 
     @property
+    def LIGHTFM_MODEL_FILE(self) -> str:
+        return self._get_secret(
+            "LIGHTFM_MODEL_FILE", "app/resources/lightfm_sber_model.pkl"
+        )
+
+    @property
     def DATA_CACHE_TTL(self) -> str:
         return self._get_secret("DATA_CACHE_TTL", "10m")
 

@@ -32,6 +32,7 @@ class User(Base):
     password = Column(String, nullable=False)
     user_type = Column(String(50), default="student")
     self_bio = Column(String, unique=False)
+    avatar_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
     )
@@ -95,3 +96,67 @@ class Rating(Base):
 
     def __repr__(self):
         return f"<Rating(id={self.id}, user_id={self.user_id}, project_id={self.project_id}, rating={self.rating})>"
+
+
+class Tag(Base):
+    """Tag model for storing available tags"""
+
+    __tablename__ = "tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    name = Column(String(255), nullable=False, unique=True)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
+    )
+
+    def __repr__(self):
+        return f"<Tag(id={self.id}, name='{self.name}')>"
+
+
+class UserTag(Base):
+    """User-Tag association model"""
+
+    __tablename__ = "user_tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
+    )
+
+    user = relationship("User", backref="user_tags")
+    tag = relationship("Tag", backref="user_tags")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "tag_id", name="unique_user_tag"),
+    )
+
+    def __repr__(self):
+        return f"<UserTag(id={self.id}, user_id={self.user_id}, tag_id={self.tag_id})>"
+
+
+class ProjectTag(Base):
+    """Project-Tag association model"""
+
+    __tablename__ = "project_tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=datetime.datetime.utcnow, nullable=False
+    )
+
+    project = relationship("Project", backref="project_tags")
+    tag = relationship("Tag", backref="project_tags")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "tag_id", name="unique_project_tag"),
+    )
+
+    def __repr__(self):
+        return f"<ProjectTag(id={self.id}, project_id={self.project_id}, tag_id={self.tag_id})>"

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     self_bio TEXT,
     user_type VARCHAR(50) DEFAULT 'student',
     password TEXT NOT NULL,
+    avatar_id UUID REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
@@ -28,7 +29,7 @@ CREATE TABLE IF NOT EXISTS projects (
     annotation TEXT,
     description TEXT,
     embedding VECTOR(384),
-    tags VECTOR(1905),
+    tags VECTOR(1861),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
@@ -44,4 +45,27 @@ CREATE TABLE IF NOT EXISTS ratings (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (user_id, project_id)
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_tags (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS project_tags (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (project_id, tag_id)
 );

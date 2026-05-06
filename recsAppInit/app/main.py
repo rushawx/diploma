@@ -9,6 +9,8 @@ import logging
 import os
 import json
 import pickle
+import random
+import string
 import uuid
 from typing import List
 
@@ -21,7 +23,7 @@ from dotenv import load_dotenv
 
 
 from config import settings
-from models import Project, User, Rating
+from models import Project, User, Rating, Tag, UserTag, ProjectTag
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -30,6 +32,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+
+def generate_random_password(length: int = 12) -> str:
+    """Generate a random password"""
+    alphabet = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(alphabet) for _ in range(length))
 
 
 with open(settings.TITLES_WITH_TAGS_PATH, "rb") as f:
@@ -239,21 +247,31 @@ def create_artificial_users_and_ratings(
                     logger.info(f"User '{profile_name}' already exists, skipping")
                     continue
 
+                profile_data = profiles_with_bio.get(profile_name, {})
+                bio_text = profile_data.get("bio", "") if isinstance(profile_data, dict) else str(profile_data)
+
                 new_user = User(
                     id=uuid.uuid4(),
                     nick_name=profile_name,
-                    password="default_password",
-                    user_type="student",
-                    self_bio=profiles_with_bio.get(profile_name),
+                    password=generate_random_password(),
+                    user_type="avatar",
+                    self_bio=bio_text,
                 )
                 session.add(new_user)
                 session.commit()
                 session.refresh(new_user)
 
                 ratings_count = 0
-                for project_title, rating in profile_ratings.items():
+                for project_key, rating in profile_ratings.items():
                     if rating is None:
                         continue
+
+                    # Parse project_key - it may be a JSON string or a plain title
+                    try:
+                        project_data = json.loads(project_key)
+                        project_title = project_data.get("title", project_key)
+                    except (json.JSONDecodeError, AttributeError):
+                        project_title = project_key
 
                     project = projects_map.get(project_title)
                     if not project:
@@ -300,6 +318,163 @@ def create_artificial_users_and_ratings(
         return 0
 
 
+def insert_tags(session: sessionmaker) -> int:
+    """Insert tags from tags_set.pkl into database"""
+    try:
+        logger.info("Loading tags from tags_set.pkl")
+        with open(settings.TAGS_SET_PATH, "rb") as f:
+            tags_set = pickle.load(f)
+        logger.info(f"Loaded {len(tags_set)} tags")
+
+        tags_map = {}
+        inserted_count = 0
+        skipped_count = 0
+
+        for tag_name in sorted(tags_set):
+            existing_tag = session.query(Tag).filter(Tag.name == tag_name).first()
+            if existing_tag:
+                tags_map[tag_name] = existing_tag
+                skipped_count += 1
+                continue
+
+            new_tag = Tag(id=uuid.uuid4(), name=tag_name)
+            session.add(new_tag)
+            session.commit()
+            session.refresh(new_tag)
+            tags_map[tag_name] = new_tag
+            inserted_count += 1
+
+        logger.info(f"Inserted {inserted_count} tags, skipped {skipped_count} existing tags")
+        return tags_map
+
+    except Exception as e:
+        logger.error(f"Failed to insert tags: {str(e)}")
+        if settings.STOP_ON_ERROR:
+            raise
+        return {}
+
+
+def insert_project_tags(
+    session: sessionmaker, projects_map: dict, tags_map: dict
+) -> int:
+    """Insert project-tag associations from titles_with_tags_dict.pkl"""
+    try:
+        logger.info("Loading project tags from titles_with_tags_dict.pkl")
+        with open(settings.TITLES_WITH_TAGS_PATH, "rb") as f:
+            titles_with_tags_dict = pickle.load(f)
+        logger.info(f"Loaded tags for {len(titles_with_tags_dict)} projects")
+
+        inserted_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for project_title, tag_names in titles_with_tags_dict.items():
+            project = projects_map.get(project_title)
+            if not project:
+                logger.warning(f"Project '{project_title}' not found for tags")
+                skipped_count += len(tag_names)
+                continue
+
+            for tag_name in tag_names:
+                tag = tags_map.get(tag_name)
+                if not tag:
+                    logger.warning(f"Tag '{tag_name}' not found in tags_map")
+                    skipped_count += 1
+                    continue
+
+                existing_project_tag = (
+                    session.query(ProjectTag)
+                    .filter(
+                        ProjectTag.project_id == project.id,
+                        ProjectTag.tag_id == tag.id,
+                    )
+                    .first()
+                )
+                if existing_project_tag:
+                    skipped_count += 1
+                    continue
+
+                new_project_tag = ProjectTag(
+                    id=uuid.uuid4(), project_id=project.id, tag_id=tag.id
+                )
+                session.add(new_project_tag)
+                inserted_count += 1
+
+            session.commit()
+
+        logger.info(
+            f"Inserted {inserted_count} project tags, skipped {skipped_count}, errors: {error_count}"
+        )
+        return inserted_count
+
+    except Exception as e:
+        logger.error(f"Failed to insert project tags: {str(e)}")
+        if settings.STOP_ON_ERROR:
+            raise
+        return 0
+
+
+def insert_user_tags(
+    session: sessionmaker, users_map: dict, tags_map: dict
+) -> int:
+    """Insert user-tag associations from artificial_profiles.json"""
+    try:
+        logger.info("Loading user tags from artificial_profiles.json")
+        with open(settings.PROFILES_PATH, "r") as f:
+            profiles_with_bio = json.load(f)
+        logger.info(f"Loaded tags for {len(profiles_with_bio)} users")
+
+        inserted_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for profile_name, profile_data in profiles_with_bio.items():
+            user = users_map.get(profile_name)
+            if not user:
+                logger.warning(f"User '{profile_name}' not found for tags")
+                skipped_count += len(profile_data.get("tags", []))
+                continue
+
+            tag_names = profile_data.get("tags", [])
+            for tag_name in tag_names:
+                tag = tags_map.get(tag_name)
+                if not tag:
+                    logger.warning(f"Tag '{tag_name}' not found in tags_map")
+                    skipped_count += 1
+                    continue
+
+                existing_user_tag = (
+                    session.query(UserTag)
+                    .filter(
+                        UserTag.user_id == user.id,
+                        UserTag.tag_id == tag.id,
+                    )
+                    .first()
+                )
+                if existing_user_tag:
+                    skipped_count += 1
+                    continue
+
+                new_user_tag = UserTag(
+                    id=uuid.uuid4(), user_id=user.id, tag_id=tag.id
+                )
+                session.add(new_user_tag)
+                inserted_count += 1
+
+            session.commit()
+
+        logger.info(
+            f"Inserted {inserted_count} user tags, skipped {skipped_count}, errors: {error_count}"
+        )
+        return inserted_count
+
+    except Exception as e:
+        logger.error(f"Failed to insert user tags: {str(e)}")
+        if settings.STOP_ON_ERROR:
+            raise
+        return 0
+
+
 def main():
     """Main initialization function"""
     logger.info("Starting Data and Embeddings Initialization Service")
@@ -338,10 +513,19 @@ def main():
             projects_map = {project.title_rus: project for project in projects}
 
             profiles = load_artificial_profiles()
+            users_map = {}
             if profiles:
                 users_created = create_artificial_users_and_ratings(
                     profiles, session, projects_map
                 )
+                users = session.query(User).filter(User.user_type == "avatar").all()
+                users_map = {user.nick_name: user for user in users}
+
+            tags_map = insert_tags(session)
+            if tags_map:
+                project_tags_count = insert_project_tags(session, projects_map, tags_map)
+                if users_map:
+                    user_tags_count = insert_user_tags(session, users_map, tags_map)
 
         logger.info(f"Initialization complete! {inserted_count} projects ready")
 

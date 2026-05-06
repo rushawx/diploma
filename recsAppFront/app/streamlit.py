@@ -1,18 +1,28 @@
 import streamlit as st
 from app.config import Settings
 from handlers.auth_helpers import (
+    add_user_tags,
+    auto_assign_avatar,
+    get_all_avatars,
+    get_avatar_recommendations,
+    get_my_avatar,
     get_user_profile,
     is_authenticated,
     is_token_expired,
     login,
     logout,
     make_authenticated_request,
+    select_avatar,
     signup,
 )
 from handlers.transformers import (
     compile_tags_vector,
     get_model,
     get_tags_set,
+    get_model,
+    get_tags_set,
+    get_lightfm_model,
+    get_lightfm_recommendations,
     tags_search,
     transformer_search,
     get_als_model,
@@ -124,11 +134,12 @@ menu = [
     "Welcome Page",
     "Find Projects by Query",
     "Find Projects by Tags",
-    "Get Collaborative Recommendations",
+    "Get Recommendations",
     "View Available Projects",
     "View Project Details",
     "View My Projects",
     "Create Project",
+    "Your Avatar",
     "Signup",
     "Login",
     "Profile",
@@ -213,14 +224,14 @@ elif choice == "Find Projects by Query":
                     st.info("No similar projects found")
     else:
         st.warning("Please login to access this feature")
-elif choice == "Get Collaborative Recommendations":
-    st.subheader("Get Collaborative Recommendations")
+elif choice == "Get Recommendations":
+    st.subheader("Get Recommendations")
     if is_authenticated():
         if is_token_expired():
             st.warning("Session expired. Please login again.")
         else:
             st.markdown(
-                "Get personalized project recommendations based on collaborative filtering using the ALS model."
+                "Get personalized project recommendations based on your associated avatar's preferences."
             )
 
             profile = get_user_profile()
@@ -229,65 +240,79 @@ elif choice == "Get Collaborative Recommendations":
             else:
                 user_id = profile.get("id")
 
-                with st.spinner("Loading ALS model and generating recommendations..."):
-                    als_model = get_als_model()
+                # Get user's avatar
+                my_avatar = get_my_avatar()
 
-                    if als_model is not None:
-                        results = get_als_recommendations(als_model, user_id)
+                if not my_avatar:
+                    st.warning(
+                        "⚠️ No avatar associated. Visit 'Your Avatar' page to select an avatar first."
+                    )
+                else:
+                    avatar_name = my_avatar.get("nick_name", "Unknown")
 
-                        if not results.empty:
-                            st.success(f"Found {len(results)} recommendations for you")
+                    st.info(f"🎭 Using recommendations based on your avatar: **{avatar_name}**")
 
-                            project_options = {
-                                f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
-                                    "project", {}
-                                ).get(
-                                    "id"
-                                )
-                                for _, row in results.iterrows()
-                            }
+                    with st.spinner("Loading LightFM model and generating recommendations..."):
+                        lightfm_model = get_lightfm_model()
 
-                            selected_project_name = st.selectbox(
-                                "Select a project to claim as yours",
-                                list(project_options.keys()),
+                        if lightfm_model is not None:
+                            results = get_lightfm_recommendations(
+                                lightfm_model, avatar_name, user_id
                             )
 
-                            if st.button("Claim Selected Project"):
-                                if selected_project_name:
-                                    project_id = project_options[selected_project_name]
-                                    if claim_project(project_id):
-                                        if st.button("Get More Recommendations"):
-                                            st.rerun()
+                            if not results.empty:
+                                st.success(f"Found {len(results)} recommendations for you")
 
-                            st.markdown("---")
-                            for _, row in results.iterrows():
-                                project = row.get("project", {})
-                                score = row.get("score", 0)
-                                algo = row.get("algo", "unknown")
-
-                                st.markdown(
-                                    f"### {project.get('title_rus', 'Untitled')}"
-                                )
-                                st.caption(f"🎯 {algo.title()} Score: {score:.2f}")
-
-                                if project.get("title_eng"):
-                                    st.caption(f"🇬🇧 {project.get('title_eng')}")
-
-                                if project.get("annotation"):
-                                    st.info(
-                                        f"📝 **Annotation:** {project.get('annotation')}"
+                                project_options = {
+                                    f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
+                                        "project", {}
+                                    ).get(
+                                        "id"
                                     )
+                                    for _, row in results.iterrows()
+                                }
 
-                                if project.get("description"):
-                                    st.text(project.get("description", ""))
+                                selected_project_name = st.selectbox(
+                                    "Select a project to claim as yours",
+                                    list(project_options.keys()),
+                                )
+
+                                if st.button("Claim Selected Project"):
+                                    if selected_project_name:
+                                        project_id = project_options[selected_project_name]
+                                        if claim_project(project_id):
+                                            if st.button("Get More Recommendations"):
+                                                st.rerun()
 
                                 st.markdown("---")
+                                for _, row in results.iterrows():
+                                    project = row.get("project", {})
+                                    score = row.get("score", 0)
+                                    algo = row.get("algo", "unknown")
+
+                                    st.markdown(
+                                        f"### {project.get('title_rus', 'Untitled')}"
+                                    )
+                                    st.caption(f"🎯 {algo.upper()} Score: {score:.2f}")
+
+                                    if project.get("title_eng"):
+                                        st.caption(f"🇬🇧 {project.get('title_eng')}")
+
+                                    if project.get("annotation"):
+                                        st.info(
+                                            f"📝 **Annotation:** {project.get('annotation')}"
+                                        )
+
+                                    if project.get("description"):
+                                        st.text(project.get("description", ""))
+
+                                    st.markdown("---")
+                            else:
+                                st.info(
+                                    "No new recommendations available. Try selecting a different avatar or rate more projects!"
+                                )
                         else:
-                            st.info(
-                                "No recommendations found. Try rating some projects to get personalized recommendations!"
-                            )
-                    else:
-                        st.error("Could not load ALS model")
+                            st.error("Could not load LightFM model")
     else:
         st.warning("Please login to access this feature")
 elif choice == "Find Projects by Tags":
@@ -616,6 +641,169 @@ elif choice == "Create Project":
                     st.error(f"Error: {str(e)}")
     else:
         st.warning("Please login to access this feature")
+elif choice == "Your Avatar":
+    st.subheader("Your Avatar")
+    if is_authenticated():
+        if is_token_expired():
+            st.warning("Session expired. Please login again.")
+        else:
+            profile = get_user_profile()
+            user_id = profile.get("id") if profile else None
+
+            st.markdown(
+                "## 🎭 Your Avatar Profile\n\n"
+                "Avatars are AI-generated persona profiles that help match you with "
+                "relevant projects based on similar interests and preferences."
+            )
+
+            current_avatar = get_my_avatar()
+
+            if current_avatar:
+                st.markdown("### Your Current Avatar")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.info(f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}")
+                    st.info(f"**User Type:** {current_avatar.get('user_type', 'N/A').title()}")
+
+                with col2:
+                    if current_avatar.get("self_bio"):
+                        st.markdown(f"**Bio:**")
+                        st.text(current_avatar.get("self_bio"))
+
+                st.markdown("---")
+
+            st.markdown("### Update Your Interests")
+            st.info(
+                "🏷️ Update your tags to get better avatar recommendations. "
+                "The system will find avatars with similar interests based on "
+                "cosine similarity of tag vectors."
+            )
+
+            available_tags = get_tags_set()
+
+            if not available_tags:
+                st.error("No tags available. Please try again later.")
+            else:
+                response = make_authenticated_request("GET", f"/tags/user/{user_id}")
+                current_user_tags = []
+                if response.status_code == 200:
+                    current_user_tags = [tag.get("tag", {}).get("name") for tag in response.json()]
+
+                search_tags = st.text_input(
+                    "🔍 Search tags",
+                    placeholder="Type to filter tags...",
+                    key="avatar_tag_search",
+                )
+
+                filtered_tags = (
+                    [tag for tag in available_tags if search_tags.lower() in tag.lower()]
+                    if search_tags
+                    else available_tags
+                )
+
+                selected_tags = st.multiselect(
+                    "Select your interests",
+                    options=filtered_tags,
+                    default=current_user_tags,
+                    help="Choose tags that represent your academic interests",
+                    key="avatar_tags_update",
+                )
+
+                if st.button("Update Tags"):
+                    if selected_tags:
+                        make_authenticated_request(
+                            "DELETE", f"/tags/user/{user_id}"
+                        )
+                        if make_authenticated_request(
+                            "POST", f"/tags/user/{user_id}", json=selected_tags
+                        ):
+                            st.success("Tags updated successfully!")
+                            st.rerun()
+                    else:
+                        st.error("Please select at least one tag")
+
+            st.markdown("---")
+            st.markdown("### Recommended Avatars")
+
+            with st.spinner("Finding avatars matching your interests..."):
+                recommended_avatars = get_avatar_recommendations()
+
+            if recommended_avatars:
+                st.success(f"Found {len(recommended_avatars)} avatars matching your interests")
+
+                avatar_options = {
+                    f"{a.get('nick_name', 'Unknown')} - {a.get('self_bio', 'No description')[:50]}...": a.get("id")
+                    for a in recommended_avatars
+                }
+
+                selected_avatar_name = st.selectbox(
+                    "Select an avatar to view details or associate",
+                    list(avatar_options.keys()),
+                    key="avatar_select",
+                )
+
+                if selected_avatar_name:
+                    avatar_id = avatar_options[selected_avatar_name]
+                    selected_avatar = next(
+                        (a for a in recommended_avatars if a.get("id") == avatar_id),
+                        None
+                    )
+
+                    if selected_avatar:
+                        st.markdown("#### Avatar Details")
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.info(f"**Name:** {selected_avatar.get('nick_name', 'N/A')}")
+                            st.info(f"**Type:** {selected_avatar.get('user_type', 'N/A').title()}")
+
+                        with col2:
+                            if selected_avatar.get("self_bio"):
+                                st.markdown(f"**Description:**")
+                                st.text(selected_avatar.get("self_bio"))
+
+                        if current_avatar and current_avatar.get("id") == avatar_id:
+                            st.success("✅ This is your current avatar")
+                        else:
+                            if st.button("Associate with this Avatar", key=f"associate_{avatar_id}"):
+                                if select_avatar(avatar_id):
+                                    st.success("Avatar associated successfully!")
+                                    st.rerun()
+            else:
+                st.info("No avatars available or could not generate recommendations")
+
+            st.markdown("---")
+            st.markdown("### All Available Avatars")
+
+            with st.spinner("Loading all avatars..."):
+                all_avatars = get_all_avatars()
+
+            if all_avatars:
+                st.info(f"Total avatars available: {len(all_avatars)}")
+
+                for avatar in all_avatars:
+                    with st.expander(f"👤 {avatar.get('nick_name', 'Unknown')}"):
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.info(f"**Name:** {avatar.get('nick_name', 'N/A')}")
+                            st.info(f"**Type:** {avatar.get('user_type', 'N/A').title()}")
+
+                        with col2:
+                            if avatar.get("self_bio"):
+                                st.markdown(f"**Description:**")
+                                st.text(avatar.get("self_bio"))
+
+                        if current_avatar and current_avatar.get("id") == avatar.get("id"):
+                            st.success("✅ This is your current avatar")
+                        else:
+                            if st.button("Associate with this Avatar", key=f"associate_all_{avatar.get('id')}"):
+                                if select_avatar(avatar.get("id")):
+                                    st.success("Avatar associated successfully!")
+                                    st.rerun()
+    else:
+        st.warning("Please login to access this feature")
 elif choice == "Signup":
     st.subheader("Signup")
     st.markdown(
@@ -648,11 +836,47 @@ elif choice == "Signup":
             "About Yourself", placeholder="Tell us a bit about yourself...", height=100
         )
 
+        st.markdown("### Your Interests (Tags)")
+        st.info(
+            "🏷️ Select at least one tag that matches your interests. This helps us recommend relevant projects."
+        )
+
+        available_tags = get_tags_set()
+
+        if not available_tags:
+            st.error("No tags available. Please try again later.")
+        else:
+            st.info(f"📋 Available tags: {len(available_tags)}")
+
+            search_tags = st.text_input(
+                "🔍 Search tags",
+                placeholder="Type to filter tags...",
+                key="tag_search",
+            )
+
+            filtered_tags = (
+                [tag for tag in available_tags if search_tags.lower() in tag.lower()]
+                if search_tags
+                else available_tags
+            )
+
+            selected_tags = st.multiselect(
+                "Select your interests* (choose at least one)",
+                options=filtered_tags,
+                help="Choose tags that represent your academic interests and areas of expertise",
+                key="signup_tags",
+            )
+
+            if selected_tags:
+                st.write(f"✅ Selected: {len(selected_tags)} tag(s)")
+
         submitted = st.form_submit_button("Sign Up")
 
         if submitted:
             if not nick_name or not password:
                 st.error("Please fill in all required fields (marked with *)")
+            elif not selected_tags:
+                st.error("Please select at least one tag")
             else:
                 user_data = {"nick_name": nick_name, "password": password}
 
@@ -671,7 +895,22 @@ elif choice == "Signup":
                 if self_bio:
                     user_data["self_bio"] = self_bio
 
-                signup(user_data)
+                signup_success = signup(user_data)
+                if signup_success:
+                    if login(nick_name, password):
+                        profile = get_user_profile()
+                        if profile:
+                            user_id = profile.get("id")
+                            tag_ids = [
+                                tag for tag in selected_tags
+                            ]
+                            if add_user_tags(user_id, tag_ids):
+                                st.success("Tags added to your profile!")
+                                if auto_assign_avatar():
+                                    st.success("Best matching avatar assigned automatically!")
+                                st.rerun()
+                            else:
+                                st.warning("Account created but tags could not be added")
 elif choice == "Login":
     st.subheader("Login")
     nick_name = st.text_input("Username")
@@ -724,6 +963,24 @@ elif choice == "Profile":
             if profile.get("self_bio"):
                 st.markdown("### About Me")
                 st.text(profile.get("self_bio"))
+
+            st.markdown("---")
+
+            current_avatar = get_my_avatar()
+            if current_avatar:
+                st.markdown("### 🎭 Your Associated Avatar")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.info(f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}")
+                    st.info(f"**Avatar Type:** {current_avatar.get('user_type', 'N/A').title()}")
+
+                with col2:
+                    if current_avatar.get("self_bio"):
+                        st.markdown(f"**Avatar Description:**")
+                        st.text(current_avatar.get("self_bio"))
+            else:
+                st.info("🎭 No avatar associated. Visit 'Your Avatar' page to select one.")
 
             st.markdown("---")
             st.markdown("### Account Details")

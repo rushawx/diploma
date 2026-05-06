@@ -43,6 +43,49 @@ class Rating(Base):
     )
 
 
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
+    )
+
+
+class UserTag(Base):
+    __tablename__ = "user_tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    user = relationship("User", backref="user_tags")
+    tag = relationship("Tag", backref="user_tags")
+
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "tag_id", name="unique_user_tag"),
+    )
+
+
+class ProjectTag(Base):
+    __tablename__ = "project_tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    project = relationship("Project", backref="project_tags")
+    tag = relationship("Tag", backref="project_tags")
+
+    __table_args__ = (
+        sa.UniqueConstraint("project_id", "tag_id", name="unique_project_tag"),
+    )
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -56,12 +99,15 @@ class User(Base):
     self_bio = Column(String, unique=False)
     user_type = Column(String, unique=False)
     password = Column(String)
+    avatar_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(
         DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
     )
     deleted_at = Column(DateTime, nullable=True)
     modified_by = Column(UUID(as_uuid=True), nullable=True)
+
+    avatar = relationship("User", remote_side=[id], backref="avatar_users")
 
 
 class Project(Base):
@@ -73,7 +119,7 @@ class Project(Base):
     annotation = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     embedding = Column(Vector(384), nullable=True)
-    tags = Column(Vector(1914), nullable=True)
+    tags = Column(Vector(1861), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(
         DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now

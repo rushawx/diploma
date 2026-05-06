@@ -34,6 +34,8 @@ async def login(input: UserLogin, db=Depends(get_db)):
     user_from_db = get_user_from_db(input.nick_name)
     if not user_from_db or user_from_db.password != input.password:
         raise HTTPException(status_code=401, detail="User not found")
+    if user_from_db.user_type == "avatar":
+        raise HTTPException(status_code=403, detail="Avatar users cannot login")
     return {
         "access_token": create_jwt_token({"sub": user_from_db.nick_name}),
         "token_type": "bearer",

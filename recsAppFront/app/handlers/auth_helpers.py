@@ -130,3 +130,107 @@ def get_user_profile() -> dict:
     except Exception as e:
         st.error(f"Error fetching profile: {str(e)}")
         return {}
+
+
+def add_user_tags(user_id: str, tag_ids: list) -> bool:
+    """Add tags to a user after signup"""
+    try:
+        response = make_authenticated_request(
+            "POST", f"/tags/user/{user_id}", json={"tag_names": tag_ids}
+        )
+        if response.status_code == 200:
+            return True
+        else:
+            st.error(f"Failed to add tags: {response.json().get('detail', 'Unknown error')}")
+            return False
+    except Exception as e:
+        st.error(f"Error adding user tags: {str(e)}")
+        return False
+
+
+def auto_assign_avatar() -> bool:
+    """Automatically assign the best matching avatar based on tags"""
+    try:
+        response = make_authenticated_request("GET", "/avatars/recommend")
+        if response.status_code == 200:
+            avatars = response.json()
+            if avatars:
+                best_avatar = avatars[0]
+                avatar_id = best_avatar.get("id")
+                select_response = make_authenticated_request(
+                    "PUT", f"/avatars/select/{avatar_id}"
+                )
+                if select_response.status_code == 200:
+                    return True
+        return False
+    except Exception as e:
+        st.error(f"Error auto-assigning avatar: {str(e)}")
+        return False
+
+
+def get_avatar_recommendations() -> list:
+    """Get recommended avatars based on user's tags"""
+    try:
+        response = make_authenticated_request("GET", "/avatars/recommend")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"Failed to get avatar recommendations: {response.json().get('detail', 'Unknown error')}")
+            return []
+    except Exception as e:
+        st.error(f"Error getting avatar recommendations: {str(e)}")
+        return []
+
+
+def get_all_avatars() -> list:
+    """Get all available avatars"""
+    try:
+        response = make_authenticated_request("GET", "/avatars/")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"Failed to get avatars: {response.json().get('detail', 'Unknown error')}")
+            return []
+    except Exception as e:
+        st.error(f"Error getting avatars: {str(e)}")
+        return []
+
+
+def get_avatar(avatar_id: str) -> dict:
+    """Get a specific avatar"""
+    try:
+        response = make_authenticated_request("GET", f"/avatars/{avatar_id}")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"Failed to get avatar: {response.json().get('detail', 'Unknown error')}")
+            return {}
+    except Exception as e:
+        st.error(f"Error getting avatar: {str(e)}")
+        return {}
+
+
+def select_avatar(avatar_id: str) -> bool:
+    """Select an avatar for the current user"""
+    try:
+        response = make_authenticated_request("PUT", f"/avatars/select/{avatar_id}")
+        if response.status_code == 200:
+            return True
+        else:
+            st.error(f"Failed to select avatar: {response.json().get('detail', 'Unknown error')}")
+            return False
+    except Exception as e:
+        st.error(f"Error selecting avatar: {str(e)}")
+        return False
+
+
+def get_my_avatar() -> dict:
+    """Get current user's associated avatar"""
+    try:
+        response = make_authenticated_request("GET", "/avatars/my")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {}
+    except Exception as e:
+        return {}
