@@ -51,7 +51,13 @@ async def get_avatars(
     db=Depends(get_db),
 ):
     """Get all avatar users"""
-    users = db.query(User).filter(User.user_type == "avatar").offset(skip).limit(limit).all()
+    users = (
+        db.query(User)
+        .filter(User.user_type == "avatar")
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return [
         UserResponse(
             id=str(user.id),

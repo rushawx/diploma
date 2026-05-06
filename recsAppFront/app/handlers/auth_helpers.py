@@ -141,7 +141,9 @@ def add_user_tags(user_id: str, tag_ids: list) -> bool:
         if response.status_code == 200:
             return True
         else:
-            st.error(f"Failed to add tags: {response.json().get('detail', 'Unknown error')}")
+            st.error(
+                f"Failed to add tags: {response.json().get('detail', 'Unknown error')}"
+            )
             return False
     except Exception as e:
         st.error(f"Error adding user tags: {str(e)}")
@@ -175,7 +177,9 @@ def get_avatar_recommendations() -> list:
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"Failed to get avatar recommendations: {response.json().get('detail', 'Unknown error')}")
+            st.error(
+                f"Failed to get avatar recommendations: {response.json().get('detail', 'Unknown error')}"
+            )
             return []
     except Exception as e:
         st.error(f"Error getting avatar recommendations: {str(e)}")
@@ -189,7 +193,9 @@ def get_all_avatars() -> list:
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"Failed to get avatars: {response.json().get('detail', 'Unknown error')}")
+            st.error(
+                f"Failed to get avatars: {response.json().get('detail', 'Unknown error')}"
+            )
             return []
     except Exception as e:
         st.error(f"Error getting avatars: {str(e)}")
@@ -203,7 +209,9 @@ def get_avatar(avatar_id: str) -> dict:
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"Failed to get avatar: {response.json().get('detail', 'Unknown error')}")
+            st.error(
+                f"Failed to get avatar: {response.json().get('detail', 'Unknown error')}"
+            )
             return {}
     except Exception as e:
         st.error(f"Error getting avatar: {str(e)}")
@@ -217,7 +225,9 @@ def select_avatar(avatar_id: str) -> bool:
         if response.status_code == 200:
             return True
         else:
-            st.error(f"Failed to select avatar: {response.json().get('detail', 'Unknown error')}")
+            st.error(
+                f"Failed to select avatar: {response.json().get('detail', 'Unknown error')}"
+            )
             return False
     except Exception as e:
         st.error(f"Error selecting avatar: {str(e)}")

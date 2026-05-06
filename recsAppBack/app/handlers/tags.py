@@ -7,7 +7,7 @@ from app.models.tags import (
     TagBase,
     UserTagResponse,
     ProjectTagResponse,
-    TagNamesRequest
+    TagNamesRequest,
 )
 from app.utils.utils import get_db
 from fastapi import APIRouter, Depends, HTTPException
@@ -79,7 +79,9 @@ async def get_user_tags(
                 id=str(user_tag.id),
                 user_id=str(user_tag.user_id),
                 tag_id=str(user_tag.tag_id),
-                created_at=user_tag.created_at.isoformat() if user_tag.created_at else None,
+                created_at=(
+                    user_tag.created_at.isoformat() if user_tag.created_at else None
+                ),
                 tag=tag_data,
             )
         )
@@ -93,7 +95,9 @@ async def get_project_tags(
     db=Depends(get_db),
 ):
     """Get all tags for a project"""
-    project_tags = db.query(ProjectTag).filter(ProjectTag.project_id == project_id).all()
+    project_tags = (
+        db.query(ProjectTag).filter(ProjectTag.project_id == project_id).all()
+    )
     results = []
     for project_tag in project_tags:
         tag = db.query(Tag).filter(Tag.id == project_tag.tag_id).first()
@@ -112,9 +116,11 @@ async def get_project_tags(
                 id=str(project_tag.id),
                 project_id=str(project_tag.project_id),
                 tag_id=str(project_tag.tag_id),
-                created_at=project_tag.created_at.isoformat()
-                if project_tag.created_at
-                else None,
+                created_at=(
+                    project_tag.created_at.isoformat()
+                    if project_tag.created_at
+                    else None
+                ),
                 tag=tag_data,
             )
         )

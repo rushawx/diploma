@@ -149,7 +149,9 @@ async def get_avatar(
     db=Depends(get_db),
 ):
     """Get a specific avatar"""
-    avatar = db.query(User).filter(User.id == avatar_id, User.user_type == "avatar").first()
+    avatar = (
+        db.query(User).filter(User.id == avatar_id, User.user_type == "avatar").first()
+    )
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
     return UserResponse(
@@ -178,7 +180,9 @@ async def select_avatar(
     db=Depends(get_db),
 ):
     """Associate current user with an avatar"""
-    avatar = db.query(User).filter(User.id == avatar_id, User.user_type == "avatar").first()
+    avatar = (
+        db.query(User).filter(User.id == avatar_id, User.user_type == "avatar").first()
+    )
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 

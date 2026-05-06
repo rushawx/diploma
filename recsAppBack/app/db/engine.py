@@ -58,24 +58,32 @@ class UserTag(Base):
     __tablename__ = "user_tags"
 
     id = Column(UUID(as_uuid=True), primary_key=True, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tag_id = Column(
+        UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False
+    )
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     user = relationship("User", backref="user_tags")
     tag = relationship("Tag", backref="user_tags")
 
-    __table_args__ = (
-        sa.UniqueConstraint("user_id", "tag_id", name="unique_user_tag"),
-    )
+    __table_args__ = (sa.UniqueConstraint("user_id", "tag_id", name="unique_user_tag"),)
 
 
 class ProjectTag(Base):
     __tablename__ = "project_tags"
 
     id = Column(UUID(as_uuid=True), primary_key=True, index=True)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    tag_id = Column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tag_id = Column(
+        UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False
+    )
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     project = relationship("Project", backref="project_tags")

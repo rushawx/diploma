@@ -250,9 +250,13 @@ elif choice == "Get Recommendations":
                 else:
                     avatar_name = my_avatar.get("nick_name", "Unknown")
 
-                    st.info(f"🎭 Using recommendations based on your avatar: **{avatar_name}**")
+                    st.info(
+                        f"🎭 Using recommendations based on your avatar: **{avatar_name}**"
+                    )
 
-                    with st.spinner("Loading LightFM model and generating recommendations..."):
+                    with st.spinner(
+                        "Loading LightFM model and generating recommendations..."
+                    ):
                         lightfm_model = get_lightfm_model()
 
                         if lightfm_model is not None:
@@ -261,7 +265,9 @@ elif choice == "Get Recommendations":
                             )
 
                             if not results.empty:
-                                st.success(f"Found {len(results)} recommendations for you")
+                                st.success(
+                                    f"Found {len(results)} recommendations for you"
+                                )
 
                                 project_options = {
                                     f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
@@ -279,7 +285,9 @@ elif choice == "Get Recommendations":
 
                                 if st.button("Claim Selected Project"):
                                     if selected_project_name:
-                                        project_id = project_options[selected_project_name]
+                                        project_id = project_options[
+                                            selected_project_name
+                                        ]
                                         if claim_project(project_id):
                                             if st.button("Get More Recommendations"):
                                                 st.rerun()
@@ -663,8 +671,12 @@ elif choice == "Your Avatar":
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.info(f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}")
-                    st.info(f"**User Type:** {current_avatar.get('user_type', 'N/A').title()}")
+                    st.info(
+                        f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}"
+                    )
+                    st.info(
+                        f"**User Type:** {current_avatar.get('user_type', 'N/A').title()}"
+                    )
 
                 with col2:
                     if current_avatar.get("self_bio"):
@@ -688,7 +700,9 @@ elif choice == "Your Avatar":
                 response = make_authenticated_request("GET", f"/tags/user/{user_id}")
                 current_user_tags = []
                 if response.status_code == 200:
-                    current_user_tags = [tag.get("tag", {}).get("name") for tag in response.json()]
+                    current_user_tags = [
+                        tag.get("tag", {}).get("name") for tag in response.json()
+                    ]
 
                 search_tags = st.text_input(
                     "🔍 Search tags",
@@ -697,7 +711,11 @@ elif choice == "Your Avatar":
                 )
 
                 filtered_tags = (
-                    [tag for tag in available_tags if search_tags.lower() in tag.lower()]
+                    [
+                        tag
+                        for tag in available_tags
+                        if search_tags.lower() in tag.lower()
+                    ]
                     if search_tags
                     else available_tags
                 )
@@ -712,9 +730,7 @@ elif choice == "Your Avatar":
 
                 if st.button("Update Tags"):
                     if selected_tags:
-                        make_authenticated_request(
-                            "DELETE", f"/tags/user/{user_id}"
-                        )
+                        make_authenticated_request("DELETE", f"/tags/user/{user_id}")
                         if make_authenticated_request(
                             "POST", f"/tags/user/{user_id}", json=selected_tags
                         ):
@@ -730,10 +746,14 @@ elif choice == "Your Avatar":
                 recommended_avatars = get_avatar_recommendations()
 
             if recommended_avatars:
-                st.success(f"Found {len(recommended_avatars)} avatars matching your interests")
+                st.success(
+                    f"Found {len(recommended_avatars)} avatars matching your interests"
+                )
 
                 avatar_options = {
-                    f"{a.get('nick_name', 'Unknown')} - {a.get('self_bio', 'No description')[:50]}...": a.get("id")
+                    f"{a.get('nick_name', 'Unknown')} - {a.get('self_bio', 'No description')[:50]}...": a.get(
+                        "id"
+                    )
                     for a in recommended_avatars
                 }
 
@@ -747,7 +767,7 @@ elif choice == "Your Avatar":
                     avatar_id = avatar_options[selected_avatar_name]
                     selected_avatar = next(
                         (a for a in recommended_avatars if a.get("id") == avatar_id),
-                        None
+                        None,
                     )
 
                     if selected_avatar:
@@ -755,8 +775,12 @@ elif choice == "Your Avatar":
                         col1, col2 = st.columns(2)
 
                         with col1:
-                            st.info(f"**Name:** {selected_avatar.get('nick_name', 'N/A')}")
-                            st.info(f"**Type:** {selected_avatar.get('user_type', 'N/A').title()}")
+                            st.info(
+                                f"**Name:** {selected_avatar.get('nick_name', 'N/A')}"
+                            )
+                            st.info(
+                                f"**Type:** {selected_avatar.get('user_type', 'N/A').title()}"
+                            )
 
                         with col2:
                             if selected_avatar.get("self_bio"):
@@ -766,7 +790,10 @@ elif choice == "Your Avatar":
                         if current_avatar and current_avatar.get("id") == avatar_id:
                             st.success("✅ This is your current avatar")
                         else:
-                            if st.button("Associate with this Avatar", key=f"associate_{avatar_id}"):
+                            if st.button(
+                                "Associate with this Avatar",
+                                key=f"associate_{avatar_id}",
+                            ):
                                 if select_avatar(avatar_id):
                                     st.success("Avatar associated successfully!")
                                     st.rerun()
@@ -788,17 +815,24 @@ elif choice == "Your Avatar":
 
                         with col1:
                             st.info(f"**Name:** {avatar.get('nick_name', 'N/A')}")
-                            st.info(f"**Type:** {avatar.get('user_type', 'N/A').title()}")
+                            st.info(
+                                f"**Type:** {avatar.get('user_type', 'N/A').title()}"
+                            )
 
                         with col2:
                             if avatar.get("self_bio"):
                                 st.markdown(f"**Description:**")
                                 st.text(avatar.get("self_bio"))
 
-                        if current_avatar and current_avatar.get("id") == avatar.get("id"):
+                        if current_avatar and current_avatar.get("id") == avatar.get(
+                            "id"
+                        ):
                             st.success("✅ This is your current avatar")
                         else:
-                            if st.button("Associate with this Avatar", key=f"associate_all_{avatar.get('id')}"):
+                            if st.button(
+                                "Associate with this Avatar",
+                                key=f"associate_all_{avatar.get('id')}",
+                            ):
                                 if select_avatar(avatar.get("id")):
                                     st.success("Avatar associated successfully!")
                                     st.rerun()
@@ -901,16 +935,18 @@ elif choice == "Signup":
                         profile = get_user_profile()
                         if profile:
                             user_id = profile.get("id")
-                            tag_ids = [
-                                tag for tag in selected_tags
-                            ]
+                            tag_ids = [tag for tag in selected_tags]
                             if add_user_tags(user_id, tag_ids):
                                 st.success("Tags added to your profile!")
                                 if auto_assign_avatar():
-                                    st.success("Best matching avatar assigned automatically!")
+                                    st.success(
+                                        "Best matching avatar assigned automatically!"
+                                    )
                                 st.rerun()
                             else:
-                                st.warning("Account created but tags could not be added")
+                                st.warning(
+                                    "Account created but tags could not be added"
+                                )
 elif choice == "Login":
     st.subheader("Login")
     nick_name = st.text_input("Username")
@@ -972,15 +1008,21 @@ elif choice == "Profile":
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.info(f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}")
-                    st.info(f"**Avatar Type:** {current_avatar.get('user_type', 'N/A').title()}")
+                    st.info(
+                        f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}"
+                    )
+                    st.info(
+                        f"**Avatar Type:** {current_avatar.get('user_type', 'N/A').title()}"
+                    )
 
                 with col2:
                     if current_avatar.get("self_bio"):
                         st.markdown(f"**Avatar Description:**")
                         st.text(current_avatar.get("self_bio"))
             else:
-                st.info("🎭 No avatar associated. Visit 'Your Avatar' page to select one.")
+                st.info(
+                    "🎭 No avatar associated. Visit 'Your Avatar' page to select one."
+                )
 
             st.markdown("---")
             st.markdown("### Account Details")

@@ -223,6 +223,7 @@ def get_lightfm_model():
         # Register the LightFM4Rec class so pickle can find it
         # The pickle file was saved with the class in __main__ namespace
         import sys
+
         if "__main__" not in sys.modules:
             sys.modules["__main__"] = type(sys)("__main__")
         sys.modules["__main__"].LightFM4Rec = LightFM4Rec
@@ -238,7 +239,17 @@ def get_lightfm_model():
 
 
 class LightFM4Rec:
-    def __init__(self, model, user_mapping, item_mapping, inv_user_mapping, inv_item_mapping, user_col, item_col, rating_col):
+    def __init__(
+        self,
+        model,
+        user_mapping,
+        item_mapping,
+        inv_user_mapping,
+        inv_item_mapping,
+        user_col,
+        item_col,
+        rating_col,
+    ):
         self.model = model
         self.user_mapping = user_mapping
         self.item_mapping = item_mapping
@@ -247,8 +258,15 @@ class LightFM4Rec:
         self.user_col = user_col
         self.item_col = item_col
         self.rating_col = rating_col
-    
-    def fit(self, rating_matrix, train_interactions, user_features=None, item_features=None, epochs=16):
+
+    def fit(
+        self,
+        rating_matrix,
+        train_interactions,
+        user_features=None,
+        item_features=None,
+        epochs=16,
+    ):
         self.user_features = user_features
         self.item_features = item_features
         self.train_interactions = train_interactions
@@ -258,7 +276,7 @@ class LightFM4Rec:
             item_features=self.item_features,
             epochs=epochs,
         )
-    
+
     def _get_lfm_pred(self, user_id):
         pred = self.model.predict(
             user_ids=user_id,
@@ -271,13 +289,13 @@ class LightFM4Rec:
     def predict(self, test, interaction_matrix, user_col, filter_seen=True, k=10):
         user_ids = test[self.user_col].map(self.user_mapping).unique()
         self.item_ids = list(self.item_mapping.values())
-    
+
         pred = pd.DataFrame(user_ids, columns=[user_col])
         scores = np.vstack(pred[user_col].apply(self._get_lfm_pred).values)
 
         if filter_seen:
             scores += np.nan_to_num(interaction_matrix.todense()[user_ids] * -np.inf)
-        
+
         ind_part = np.argpartition(scores, -k)[:, -k:].copy()
         scores_not_sorted = np.take_along_axis(scores, ind_part, axis=1)
         ind_sorted = np.argsort(scores_not_sorted, axis=1)
@@ -293,7 +311,7 @@ class LightFM4Rec:
         ).explode([self.item_col, self.rating_col])
         preds[self.user_col] = preds[self.user_col].map(self.inv_user_mapping)
         preds[self.item_col] = preds[self.item_col].map(self.inv_item_mapping)
-        
+
         return preds
 
 
@@ -574,9 +592,7 @@ def get_lightfm_recommendations(
 
         # Get predictions for all items using the avatar
         predictions = lightfm_model.predict(
-            test=pd.DataFrame(
-                {"user_name": [avatar_nick_name]}
-            ),
+            test=pd.DataFrame({"user_name": [avatar_nick_name]}),
             interaction_matrix=lightfm_model.train_interactions,
             user_col="user_name",
             filter_seen=False,

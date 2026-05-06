@@ -37,7 +37,7 @@ load_dotenv()
 def generate_random_password(length: int = 12) -> str:
     """Generate a random password"""
     alphabet = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(alphabet) for _ in range(length))
+    return "".join(random.choice(alphabet) for _ in range(length))
 
 
 with open(settings.TITLES_WITH_TAGS_PATH, "rb") as f:
@@ -248,7 +248,11 @@ def create_artificial_users_and_ratings(
                     continue
 
                 profile_data = profiles_with_bio.get(profile_name, {})
-                bio_text = profile_data.get("bio", "") if isinstance(profile_data, dict) else str(profile_data)
+                bio_text = (
+                    profile_data.get("bio", "")
+                    if isinstance(profile_data, dict)
+                    else str(profile_data)
+                )
 
                 new_user = User(
                     id=uuid.uuid4(),
@@ -344,7 +348,9 @@ def insert_tags(session: sessionmaker) -> int:
             tags_map[tag_name] = new_tag
             inserted_count += 1
 
-        logger.info(f"Inserted {inserted_count} tags, skipped {skipped_count} existing tags")
+        logger.info(
+            f"Inserted {inserted_count} tags, skipped {skipped_count} existing tags"
+        )
         return tags_map
 
     except Exception as e:
@@ -414,9 +420,7 @@ def insert_project_tags(
         return 0
 
 
-def insert_user_tags(
-    session: sessionmaker, users_map: dict, tags_map: dict
-) -> int:
+def insert_user_tags(session: sessionmaker, users_map: dict, tags_map: dict) -> int:
     """Insert user-tag associations from artificial_profiles.json"""
     try:
         logger.info("Loading user tags from artificial_profiles.json")
@@ -455,9 +459,7 @@ def insert_user_tags(
                     skipped_count += 1
                     continue
 
-                new_user_tag = UserTag(
-                    id=uuid.uuid4(), user_id=user.id, tag_id=tag.id
-                )
+                new_user_tag = UserTag(id=uuid.uuid4(), user_id=user.id, tag_id=tag.id)
                 session.add(new_user_tag)
                 inserted_count += 1
 
@@ -523,7 +525,9 @@ def main():
 
             tags_map = insert_tags(session)
             if tags_map:
-                project_tags_count = insert_project_tags(session, projects_map, tags_map)
+                project_tags_count = insert_project_tags(
+                    session, projects_map, tags_map
+                )
                 if users_map:
                     user_tags_count = insert_user_tags(session, users_map, tags_map)
 
