@@ -47,6 +47,10 @@ class Settings:
         "TRANSFORMER_MODEL",
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     )
+    TRANSFORMER_MODEL_FILE: str = os.getenv(
+        "TRANSFORMER_MODEL_FILE",
+        "paraphrase-multilingual-MiniLM-L12-v2.pkl",
+    )
 
     # Validation Configuration
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "100"))

@@ -1,10 +1,9 @@
-import copyreg
 import pickle
 
-import implicit
 import numpy as np
 import pandas as pd
 import streamlit as st
+import torch
 from app.config import Settings
 from handlers.transformers_config import get_torch_device
 from handlers.auth_helpers import make_authenticated_request
@@ -82,8 +81,18 @@ def get_item_embeddings():
 
 @st.cache_resource(ttl="10m", show_spinner="Loading transformer...")
 def get_model():
-    """Load transformer model and move to configured device."""
-    model = SentenceTransformer(settings.TRANSFORMER_MODEL)
+    """Load transformer model from local pickle file or from HuggingFace and move to configured device."""
+    # Load model from local pickle file if available
+    import os
+
+    model_path = settings.TRANSFORMER_MODEL_FILE
+    if os.path.exists(model_path):
+        st.info(f"📦 Loading transformer from local file: {model_path}")
+        with open(model_path, "rb") as f:
+            model = torch.load(f, map_location="cpu", weights_only=False)
+    else:
+        st.info(f"🌐 Loading transformer from HuggingFace: {settings.TRANSFORMER_MODEL}")
+        model = SentenceTransformer(settings.TRANSFORMER_MODEL)
 
     device = get_torch_device()
     model = model.to(device)
@@ -315,30 +324,6 @@ class LightFM4Rec:
         return preds
 
 
-@st.cache_resource(ttl="1h", show_spinner="Loading ALS model...")
-def get_als_model():
-    """Load ALS model for collaborative filtering recommendations"""
-    try:
-        with open(settings.ALS_MODEL_FILE, "rb") as f:
-            model_data = pickle.load(f)
-
-        if isinstance(model_data, dict):
-            als_model = model_data["model"]
-            als_model.user_ids = model_data["user_ids"]
-            als_model.item_ids = model_data["item_ids"]
-            als_model.user_ratings = model_data.get("user_ratings", {})
-            als_model.model_params = model_data.get("model_params", {})
-            als_model.performance = model_data.get("performance", {})
-        else:
-            als_model = model_data
-
-        st.info("🎯 ALS model loaded successfully")
-        return als_model
-    except Exception as e:
-        st.error(f"Error loading ALS model: {str(e)}")
-        return None
-
-
 def get_user_ratings(user_id: str) -> dict:
     """Get all ratings for a specific user"""
     try:
@@ -408,142 +393,6 @@ def get_highly_rated_projects(top_k: int = None) -> pd.DataFrame:
 
     except Exception as e:
         st.error(f"Error fetching highly rated projects: {str(e)}")
-        return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
-
-
-def get_als_recommendations(als_model, user_id: str, top_k: int = None):
-    """
-    Get ALS-based collaborative filtering recommendations for a user.
-
-    Args:
-        als_model: Trained ALS model (implicit.als.AlternatingLeastSquares instance)
-        user_id: User ID to get recommendations for
-        top_k: Number of recommendations to return (defaults to settings.DEFAULT_TOP_K)
-
-    Returns:
-        DataFrame with recommended projects sorted by predicted rating
-    """
-    if top_k is None:
-        top_k = settings.DEFAULT_TOP_K
-
-    try:
-        if als_model is None or not hasattr(als_model, "item_factors"):
-            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
-
-        response = make_authenticated_request("GET", "/projects/ratings/all")
-        if response.status_code != 200:
-            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
-
-        all_ratings = response.json()
-        if not all_ratings:
-            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
-
-        user_ratings = {}
-        for rating in all_ratings:
-            if rating["user_id"] == user_id:
-                user_ratings[rating["project_id"]] = rating["rating"]
-
-        if not user_ratings:
-            return get_highly_rated_projects(top_k)
-
-        if len(user_ratings) < 3:
-            st.info(
-                f"ℹ️ Need at least 3 ratings for personalized ALS recommendations "
-                f"(current: {len(user_ratings)})"
-            )
-            return get_highly_rated_projects(top_k)
-
-        projects = get_backend_projects_with_embeddings()
-        if not projects:
-            return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
-
-        projects_map_by_title = {p["title_rus"]: p for p in projects}
-        projects_map_by_id = {p["id"]: p for p in projects}
-
-        user_ratings_by_item_idx = {}
-        for project_id, rating in user_ratings.items():
-            project = projects_map_by_id.get(project_id)
-            if project and project["title_rus"] in als_model.item_ids:
-                item_idx = als_model.item_ids.index(project["title_rus"])
-                user_ratings_by_item_idx[item_idx] = rating
-
-        if not user_ratings_by_item_idx:
-            return get_highly_rated_projects(top_k)
-
-        from scipy.sparse import csr_matrix
-
-        row_indices = [0] * len(user_ratings_by_item_idx)
-        col_indices = list(user_ratings_by_item_idx.keys())
-        data = list(user_ratings_by_item_idx.values())
-
-        user_items = csr_matrix(
-            (data, (row_indices, col_indices)), shape=(1, len(als_model.item_ids))
-        )
-
-        from handlers.auth_helpers import get_user_profile
-
-        user_profile = get_user_profile()
-        user_nick_name = user_profile.get("nick_name") if user_profile else None
-        user_in_model = (
-            user_nick_name in als_model.user_ids if user_nick_name else False
-        )
-
-        if user_in_model:
-            # Use existing user factors for artificial users in model
-            user_idx = als_model.user_ids.index(user_nick_name)
-
-            # Use actual training ratings from user_ratings
-            if user_idx in als_model.user_ratings:
-                original_ratings = als_model.user_ratings[user_idx]
-                row_indices = [0] * len(original_ratings)
-                col_indices = list(original_ratings.keys())
-                data = list(original_ratings.values())
-
-                original_user_items = csr_matrix(
-                    (data, (row_indices, col_indices)),
-                    shape=(1, len(als_model.item_ids)),
-                )
-            else:
-                # Fallback: create user_items from DB ratings
-                original_user_items = user_items
-
-            recommendations = als_model.recommend(
-                userid=user_idx,
-                user_items=original_user_items,
-                N=top_k,
-                filter_already_liked_items=True,
-                recalculate_user=False,
-            )
-        else:
-            recommendations = als_model.recommend(
-                userid=0,
-                user_items=user_items,
-                N=top_k,
-                filter_already_liked_items=True,
-                recalculate_user=True,
-            )
-
-        results = []
-        for item_idx, score in zip(recommendations[0], recommendations[1]):
-            project_title = als_model.item_ids[item_idx]
-            if project_title in projects_map_by_title:
-                project = projects_map_by_title[project_title]
-                results.append(
-                    {"project": project, "score": float(score), "algo": "als"}
-                )
-
-        if not results:
-            return get_highly_rated_projects(top_k)
-
-        results_df = pd.DataFrame(results)
-        results_df["title_rus"] = results_df["project"].apply(
-            lambda p: p.get("title_rus", "Untitled")
-        )
-
-        return results_df
-
-    except Exception as e:
-        st.error(f"Error generating ALS recommendations: {str(e)}")
         return pd.DataFrame(columns=["title_rus", "score", "algo", "project"])
 
 

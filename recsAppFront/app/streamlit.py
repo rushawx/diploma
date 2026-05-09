@@ -17,16 +17,12 @@ from handlers.auth_helpers import (
 )
 from handlers.transformers import (
     compile_tags_vector,
-    get_model,
-    get_tags_set,
-    get_model,
-    get_tags_set,
     get_lightfm_model,
     get_lightfm_recommendations,
+    get_model,
+    get_tags_set,
     tags_search,
     transformer_search,
-    get_als_model,
-    get_als_recommendations,
 )
 
 settings = Settings()
@@ -126,6 +122,77 @@ def get_project_rating(project_id: str) -> int:
         return 0
 
 
+def get_rated_project_ids(user_id: str) -> set:
+    """Get set of project IDs already rated by user"""
+    try:
+        response = make_authenticated_request("GET", "/projects/ratings/all")
+        if response.status_code == 200:
+            all_ratings = response.json()
+            return {
+                rating["project_id"] for rating in all_ratings if rating["user_id"] == user_id
+            }
+        return set()
+    except Exception as e:
+        return set()
+
+
+def filter_by_rated_projects(results_df, rated_project_ids: set):
+    """Filter results DataFrame to exclude already rated projects"""
+    if results_df.empty:
+        return results_df
+    return results_df[~results_df["project"].apply(lambda p: p.get("id") in rated_project_ids)]
+
+
+def create_project_selectbox_options(filtered_results_df):
+    """Create a dict of project options for selectbox from filtered results"""
+    if filtered_results_df.empty:
+        return {}
+    return {
+        f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
+            "project", {}
+        ).get("id")
+        for _, row in filtered_results_df.iterrows()
+    }
+
+
+def display_search_result(project: dict, score: float, score_label: str = "Similarity"):
+    """Display a search result project with score"""
+    st.markdown(f"### {project.get('title_rus', 'Untitled')}")
+    st.caption(f"🏷️ {score_label}: {score:.2f}")
+
+    if project.get("title_eng"):
+        st.caption(f"🇬🇧 {project.get('title_eng')}")
+
+    if project.get("annotation"):
+        st.info(f"📝 **Annotation:** {project.get('annotation')}")
+
+    if project.get("description"):
+        st.text(project.get("description", ""))
+
+    st.markdown("---")
+
+
+def display_avatar_info(avatar: dict):
+    """Display avatar information in a 2-column layout"""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.info(f"**Name:** {avatar.get('nick_name', 'N/A')}")
+        st.info(f"**Type:** {avatar.get('user_type', 'N/A').title()}")
+
+    with col2:
+        if avatar.get("self_bio"):
+            st.markdown(f"**Description:**")
+            st.text(avatar.get("self_bio"))
+
+
+def filter_tags_by_search(available_tags: list, search_text: str):
+    """Filter tags list by search text (case-insensitive)"""
+    if not search_text:
+        return available_tags
+    return [tag for tag in available_tags if search_text.lower() in tag.lower()]
+
+
 if "model" not in st.session_state:
     st.session_state["model"] = get_model()
     st.success("Model loaded successfully!")
@@ -159,25 +226,14 @@ elif choice == "Find Projects by Query":
             profile = get_user_profile()
             user_id = profile.get("id") if profile else None
 
-            rated_project_ids = set()
-            if user_id:
-                response = make_authenticated_request("GET", "/projects/ratings/all")
-                if response.status_code == 200:
-                    all_ratings = response.json()
-                    for rating in all_ratings:
-                        if rating["user_id"] == user_id:
-                            rated_project_ids.add(rating["project_id"])
+            rated_project_ids = get_rated_project_ids(user_id) if user_id else set()
 
             model = get_model()
             query = st.text_input("Enter approximate project topic")
             if query:
                 results = transformer_search(model, query)
                 if not results.empty:
-                    filtered_results = results[
-                        ~results["project"].apply(
-                            lambda p: p.get("id") in rated_project_ids
-                        )
-                    ]
+                    filtered_results = filter_by_rated_projects(results, rated_project_ids)
 
                     if filtered_results.empty:
                         st.info(
@@ -186,14 +242,7 @@ elif choice == "Find Projects by Query":
                     else:
                         st.markdown("### Similar Projects Found")
 
-                        project_options = {
-                            f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
-                                "project", {}
-                            ).get(
-                                "id"
-                            )
-                            for _, row in filtered_results.iterrows()
-                        }
+                        project_options = create_project_selectbox_options(filtered_results)
 
                         selected_project_name = st.selectbox(
                             "Select a project to claim as yours",
@@ -210,16 +259,9 @@ elif choice == "Find Projects by Query":
                         st.markdown("---")
                         st.markdown("#### Available Similar Projects:")
                         for _, row in filtered_results.iterrows():
-                            project = row.get("project", {})
-                            st.markdown(
-                                f"**{row.get('title_rus', 'Untitled')}** (Similarity: {row.get('score', 0):.2f})"
+                            display_search_result(
+                                row.get("project", {}), row.get("score", 0), "Similarity"
                             )
-                            if project.get("title_eng"):
-                                st.caption(f"🇬🇧 {project.get('title_eng')}")
-                            if project.get("annotation"):
-                                st.info(project.get("annotation"))
-                            st.text(project.get("description", ""))
-                            st.markdown("---")
                 else:
                     st.info("No similar projects found")
     else:
@@ -240,7 +282,6 @@ elif choice == "Get Recommendations":
             else:
                 user_id = profile.get("id")
 
-                # Get user's avatar
                 my_avatar = get_my_avatar()
 
                 if not my_avatar:
@@ -269,14 +310,7 @@ elif choice == "Get Recommendations":
                                     f"Found {len(results)} recommendations for you"
                                 )
 
-                                project_options = {
-                                    f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
-                                        "project", {}
-                                    ).get(
-                                        "id"
-                                    )
-                                    for _, row in results.iterrows()
-                                }
+                                project_options = create_project_selectbox_options(results)
 
                                 selected_project_name = st.selectbox(
                                     "Select a project to claim as yours",
@@ -332,14 +366,7 @@ elif choice == "Find Projects by Tags":
             profile = get_user_profile()
             user_id = profile.get("id") if profile else None
 
-            rated_project_ids = set()
-            if user_id:
-                response = make_authenticated_request("GET", "/projects/ratings/all")
-                if response.status_code == 200:
-                    all_ratings = response.json()
-                    for rating in all_ratings:
-                        if rating["user_id"] == user_id:
-                            rated_project_ids.add(rating["project_id"])
+            rated_project_ids = get_rated_project_ids(user_id) if user_id else set()
 
             st.markdown(
                 "Select multiple tags to find projects with similar tags using cosine similarity."
@@ -376,11 +403,9 @@ elif choice == "Find Projects by Tags":
                                 st.session_state["tags_search_results"] = results
 
                             if not results.empty:
-                                filtered_results = results[
-                                    ~results["project"].apply(
-                                        lambda p: p.get("id") in rated_project_ids
-                                    )
-                                ]
+                                filtered_results = filter_by_rated_projects(
+                                    results, rated_project_ids
+                                )
 
                                 if filtered_results.empty:
                                     st.info(
@@ -391,14 +416,9 @@ elif choice == "Find Projects by Tags":
                                         f"Found {len(filtered_results)} projects with similar tags!"
                                     )
 
-                                    project_options = {
-                                        f"{row.get('title_rus', 'Untitled')} ({row.get('score', 0):.2f})": row.get(
-                                            "project", {}
-                                        ).get(
-                                            "id"
-                                        )
-                                        for _, row in filtered_results.iterrows()
-                                    }
+                                    project_options = create_project_selectbox_options(
+                                        filtered_results
+                                    )
 
                                     selected_project_name = st.selectbox(
                                         "Select a project to claim as yours",
@@ -429,28 +449,11 @@ elif choice == "Find Projects by Tags":
 
                                     st.markdown("---")
                                     for _, row in filtered_results.iterrows():
-                                        project = row.get("project", {})
-                                        similarity_score = row.get("score", 0)
-
-                                        st.markdown(
-                                            f"### {project.get('title_rus', 'Untitled')}"
+                                        display_search_result(
+                                            row.get("project", {}),
+                                            row.get("score", 0),
+                                            "Tags Similarity",
                                         )
-                                        st.caption(
-                                            f"🏷️ Tags Similarity: {similarity_score:.2f}"
-                                        )
-
-                                        if project.get("title_eng"):
-                                            st.caption(f"🇬🇧 {project.get('title_eng')}")
-
-                                        if project.get("annotation"):
-                                            st.info(
-                                                f"📝 **Annotation:** {project.get('annotation')}"
-                                            )
-
-                                        if project.get("description"):
-                                            st.text(project.get("description", ""))
-
-                                        st.markdown("---")
                             else:
                                 st.info("No projects found with similar tags")
                 else:
@@ -668,21 +671,7 @@ elif choice == "Your Avatar":
 
             if current_avatar:
                 st.markdown("### Your Current Avatar")
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.info(
-                        f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}"
-                    )
-                    st.info(
-                        f"**User Type:** {current_avatar.get('user_type', 'N/A').title()}"
-                    )
-
-                with col2:
-                    if current_avatar.get("self_bio"):
-                        st.markdown(f"**Bio:**")
-                        st.text(current_avatar.get("self_bio"))
-
+                display_avatar_info(current_avatar)
                 st.markdown("---")
 
             st.markdown("### Update Your Interests")
@@ -710,15 +699,7 @@ elif choice == "Your Avatar":
                     key="avatar_tag_search",
                 )
 
-                filtered_tags = (
-                    [
-                        tag
-                        for tag in available_tags
-                        if search_tags.lower() in tag.lower()
-                    ]
-                    if search_tags
-                    else available_tags
-                )
+                filtered_tags = filter_tags_by_search(available_tags, search_tags)
 
                 selected_tags = st.multiselect(
                     "Select your interests",
@@ -772,20 +753,7 @@ elif choice == "Your Avatar":
 
                     if selected_avatar:
                         st.markdown("#### Avatar Details")
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.info(
-                                f"**Name:** {selected_avatar.get('nick_name', 'N/A')}"
-                            )
-                            st.info(
-                                f"**Type:** {selected_avatar.get('user_type', 'N/A').title()}"
-                            )
-
-                        with col2:
-                            if selected_avatar.get("self_bio"):
-                                st.markdown(f"**Description:**")
-                                st.text(selected_avatar.get("self_bio"))
+                        display_avatar_info(selected_avatar)
 
                         if current_avatar and current_avatar.get("id") == avatar_id:
                             st.success("✅ This is your current avatar")
@@ -811,18 +779,7 @@ elif choice == "Your Avatar":
 
                 for avatar in all_avatars:
                     with st.expander(f"👤 {avatar.get('nick_name', 'Unknown')}"):
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.info(f"**Name:** {avatar.get('nick_name', 'N/A')}")
-                            st.info(
-                                f"**Type:** {avatar.get('user_type', 'N/A').title()}"
-                            )
-
-                        with col2:
-                            if avatar.get("self_bio"):
-                                st.markdown(f"**Description:**")
-                                st.text(avatar.get("self_bio"))
+                        display_avatar_info(avatar)
 
                         if current_avatar and current_avatar.get("id") == avatar.get(
                             "id"
@@ -888,11 +845,7 @@ elif choice == "Signup":
                 key="tag_search",
             )
 
-            filtered_tags = (
-                [tag for tag in available_tags if search_tags.lower() in tag.lower()]
-                if search_tags
-                else available_tags
-            )
+            filtered_tags = filter_tags_by_search(available_tags, search_tags)
 
             selected_tags = st.multiselect(
                 "Select your interests* (choose at least one)",
@@ -1005,20 +958,7 @@ elif choice == "Profile":
             current_avatar = get_my_avatar()
             if current_avatar:
                 st.markdown("### 🎭 Your Associated Avatar")
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.info(
-                        f"**Avatar Name:** {current_avatar.get('nick_name', 'N/A')}"
-                    )
-                    st.info(
-                        f"**Avatar Type:** {current_avatar.get('user_type', 'N/A').title()}"
-                    )
-
-                with col2:
-                    if current_avatar.get("self_bio"):
-                        st.markdown(f"**Avatar Description:**")
-                        st.text(current_avatar.get("self_bio"))
+                display_avatar_info(current_avatar)
             else:
                 st.info(
                     "🎭 No avatar associated. Visit 'Your Avatar' page to select one."

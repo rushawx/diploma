@@ -5,7 +5,7 @@ import numpy as np
 from app.auth.auth import get_current_active_user
 from app.db.engine import User, Tag, UserTag
 from app.models.users import UserResponse
-from app.utils.utils import get_db
+from app.utils.utils import get_db, user_to_response, cosine_similarity
 from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter(prefix="/avatars", tags=["avatars"])
@@ -27,13 +27,6 @@ def compile_user_tags_vector(user_id: str, db, all_tags: List[Tag]) -> np.ndarra
     return vector
 
 
-def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    """Calculate cosine similarity between two vectors"""
-    if np.linalg.norm(vec1) == 0 or np.linalg.norm(vec2) == 0:
-        return 0.0
-    return float(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
-
-
 @router.get("/my", response_model=UserResponse)
 async def get_my_avatar(
     current_user: User = Depends(get_current_active_user),
@@ -47,23 +40,7 @@ async def get_my_avatar(
     if not avatar:
         raise HTTPException(status_code=404, detail="Associated avatar not found")
 
-    return UserResponse(
-        id=str(avatar.id),
-        nick_name=avatar.nick_name,
-        first_name=avatar.first_name,
-        middle_name=avatar.middle_name,
-        last_name=avatar.last_name,
-        email_address=avatar.email_address,
-        phone_number=avatar.phone_number,
-        self_bio=avatar.self_bio,
-        user_type=avatar.user_type,
-        password=avatar.password,
-        avatar_id=str(avatar.avatar_id) if avatar.avatar_id else None,
-        created_at=avatar.created_at.isoformat() if avatar.created_at else None,
-        updated_at=avatar.updated_at.isoformat() if avatar.updated_at else None,
-        deleted_at=avatar.deleted_at.isoformat() if avatar.deleted_at else None,
-        modified_by=str(avatar.modified_by) if avatar.modified_by else None,
-    )
+    return user_to_response(avatar)
 
 
 @router.get("/recommend", response_model=List[UserResponse])
@@ -91,26 +68,7 @@ async def recommend_avatar(
 
     avatar_scores.sort(key=lambda x: x[1], reverse=True)
 
-    return [
-        UserResponse(
-            id=str(avatar.id),
-            nick_name=avatar.nick_name,
-            first_name=avatar.first_name,
-            middle_name=avatar.middle_name,
-            last_name=avatar.last_name,
-            email_address=avatar.email_address,
-            phone_number=avatar.phone_number,
-            self_bio=avatar.self_bio,
-            user_type=avatar.user_type,
-            password=avatar.password,
-            avatar_id=str(avatar.avatar_id) if avatar.avatar_id else None,
-            created_at=avatar.created_at.isoformat() if avatar.created_at else None,
-            updated_at=avatar.updated_at.isoformat() if avatar.updated_at else None,
-            deleted_at=avatar.deleted_at.isoformat() if avatar.deleted_at else None,
-            modified_by=str(avatar.modified_by) if avatar.modified_by else None,
-        )
-        for avatar, _ in avatar_scores[:10]
-    ]
+    return [user_to_response(avatar) for avatar, _ in avatar_scores[:10]]
 
 
 @router.get("/", response_model=List[UserResponse])
@@ -120,26 +78,7 @@ async def get_avatars(
 ):
     """Get all avatars"""
     avatars = db.query(User).filter(User.user_type == "avatar").all()
-    return [
-        UserResponse(
-            id=str(avatar.id),
-            nick_name=avatar.nick_name,
-            first_name=avatar.first_name,
-            middle_name=avatar.middle_name,
-            last_name=avatar.last_name,
-            email_address=avatar.email_address,
-            phone_number=avatar.phone_number,
-            self_bio=avatar.self_bio,
-            user_type=avatar.user_type,
-            password=avatar.password,
-            avatar_id=str(avatar.avatar_id) if avatar.avatar_id else None,
-            created_at=avatar.created_at.isoformat() if avatar.created_at else None,
-            updated_at=avatar.updated_at.isoformat() if avatar.updated_at else None,
-            deleted_at=avatar.deleted_at.isoformat() if avatar.deleted_at else None,
-            modified_by=str(avatar.modified_by) if avatar.modified_by else None,
-        )
-        for avatar in avatars
-    ]
+    return [user_to_response(avatar) for avatar in avatars]
 
 
 @router.get("/{avatar_id}", response_model=UserResponse)
@@ -154,23 +93,7 @@ async def get_avatar(
     )
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
-    return UserResponse(
-        id=str(avatar.id),
-        nick_name=avatar.nick_name,
-        first_name=avatar.first_name,
-        middle_name=avatar.middle_name,
-        last_name=avatar.last_name,
-        email_address=avatar.email_address,
-        phone_number=avatar.phone_number,
-        self_bio=avatar.self_bio,
-        user_type=avatar.user_type,
-        password=avatar.password,
-        avatar_id=str(avatar.avatar_id) if avatar.avatar_id else None,
-        created_at=avatar.created_at.isoformat() if avatar.created_at else None,
-        updated_at=avatar.updated_at.isoformat() if avatar.updated_at else None,
-        deleted_at=avatar.deleted_at.isoformat() if avatar.deleted_at else None,
-        modified_by=str(avatar.modified_by) if avatar.modified_by else None,
-    )
+    return user_to_response(avatar)
 
 
 @router.put("/select/{avatar_id}")

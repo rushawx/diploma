@@ -74,6 +74,13 @@ class Settings:
         )
 
     @property
+    def TRANSFORMER_MODEL_FILE(self) -> str:
+        return self._get_secret(
+            "TRANSFORMER_MODEL_FILE",
+            "app/resources/paraphrase-multilingual-MiniLM-L12-v2.pkl",
+        )
+
+    @property
     def TRANSFORMER_CACHE_TTL(self) -> str:
         return self._get_secret("TRANSFORMER_CACHE_TTL", "10m")
 

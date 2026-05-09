@@ -9,7 +9,7 @@ from app.models.tags import (
     ProjectTagResponse,
     TagNamesRequest,
 )
-from app.utils.utils import get_db
+from app.utils.utils import get_db, tag_to_response
 from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -24,15 +24,7 @@ async def get_tags(
 ):
     """Get all tags"""
     tags = db.query(Tag).offset(skip).limit(limit).all()
-    return [
-        Tag(
-            id=str(tag.id),
-            name=tag.name,
-            created_at=tag.created_at.isoformat() if tag.created_at else None,
-            updated_at=tag.updated_at.isoformat() if tag.updated_at else None,
-        )
-        for tag in tags
-    ]
+    return [tag_to_response(tag) for tag in tags]
 
 
 @router.get("/{tag_id}", response_model=TagBase)
@@ -45,12 +37,7 @@ async def get_tag(
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    return Tag(
-        id=str(tag.id),
-        name=tag.name,
-        created_at=tag.created_at.isoformat() if tag.created_at else None,
-        updated_at=tag.updated_at.isoformat() if tag.updated_at else None,
-    )
+    return tag_to_response(tag)
 
 
 @router.get("/user/{user_id}", response_model=list[UserTagResponse])
@@ -64,16 +51,7 @@ async def get_user_tags(
     results = []
     for user_tag in user_tags:
         tag = db.query(Tag).filter(Tag.id == user_tag.tag_id).first()
-        tag_data = (
-            Tag(
-                id=str(tag.id),
-                name=tag.name,
-                created_at=tag.created_at.isoformat() if tag.created_at else None,
-                updated_at=tag.updated_at.isoformat() if tag.updated_at else None,
-            )
-            if tag
-            else None
-        )
+        tag_data = tag_to_response(tag) if tag else None
         results.append(
             UserTagResponse(
                 id=str(user_tag.id),
@@ -101,16 +79,7 @@ async def get_project_tags(
     results = []
     for project_tag in project_tags:
         tag = db.query(Tag).filter(Tag.id == project_tag.tag_id).first()
-        tag_data = (
-            Tag(
-                id=str(tag.id),
-                name=tag.name,
-                created_at=tag.created_at.isoformat() if tag.created_at else None,
-                updated_at=tag.updated_at.isoformat() if tag.updated_at else None,
-            )
-            if tag
-            else None
-        )
+        tag_data = tag_to_response(tag) if tag else None
         results.append(
             ProjectTagResponse(
                 id=str(project_tag.id),

@@ -35,12 +35,16 @@ class ProjectUpdate(BaseModel):
     chosen_by: Optional[uuid.UUID] = None
 
 
-class ProjectResponse(ProjectBase):
+class TimestampedResponse(BaseModel):
+    """Base class for response models with timestamps"""
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
     modified_by: Optional[uuid.UUID] = None
+
+
+class ProjectResponse(ProjectBase, TimestampedResponse):
     chosen_by: Optional[uuid.UUID] = None
 
     class Config:
@@ -49,7 +53,6 @@ class ProjectResponse(ProjectBase):
 
 class ProjectListResponse(BaseModel):
     """Simplified response model for project listings"""
-
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
@@ -63,7 +66,6 @@ class ProjectListResponse(BaseModel):
 
 class ProjectWithEmbedding(BaseModel):
     """Project model with embedding for similarity search"""
-
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
@@ -77,7 +79,6 @@ class ProjectWithEmbedding(BaseModel):
 
 class ProjectWithTags(BaseModel):
     """Project model with tags vector for tag-based similarity search"""
-
     id: uuid.UUID
     title_rus: str
     title_eng: Optional[str] = None
@@ -101,12 +102,9 @@ class RatingUpdate(RatingBase):
     pass
 
 
-class RatingResponse(RatingBase):
-    id: uuid.UUID
+class RatingResponse(RatingBase, TimestampedResponse):
     user_id: uuid.UUID
     project_id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True

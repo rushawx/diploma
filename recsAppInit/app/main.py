@@ -17,6 +17,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
+import torch
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -488,9 +489,17 @@ def main():
             logger.error("No data loaded, stopping initialization")
             return
 
-        logger.info(f"Loading ML model: {settings.TRANSFORMER_MODEL}")
-        model = SentenceTransformer(settings.TRANSFORMER_MODEL)
-        logger.info("ML model loaded successfully")
+        # Load model from local pickle file if available
+        model_path = settings.TRANSFORMER_MODEL_FILE
+        if os.path.exists(model_path):
+            logger.info(f"Loading ML model from local file: {model_path}")
+            with open(model_path, "rb") as f:
+                model = torch.load(f, map_location="cpu", weights_only=False)
+            logger.info("ML model loaded from local file successfully")
+        else:
+            logger.info(f"Loading ML model from HuggingFace: {settings.TRANSFORMER_MODEL}")
+            model = SentenceTransformer(settings.TRANSFORMER_MODEL)
+            logger.info("ML model loaded from HuggingFace successfully")
 
         embeddings = load_or_generate_embeddings(df, model, settings.EMBEDDINGS_PATH)
 

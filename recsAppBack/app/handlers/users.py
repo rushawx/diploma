@@ -3,7 +3,7 @@ from typing import Literal
 from app.auth.auth import get_current_active_user
 from app.db.engine import User
 from app.models.users import UserResponse
-from app.utils.utils import get_db
+from app.utils.utils import get_db, user_to_response
 from fastapi import APIRouter, Depends, Query
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -22,25 +22,7 @@ async def get_users(
     if user_type:
         query = query.filter(User.user_type == user_type)
     users = query.offset(skip).limit(limit).all()
-    return [
-        UserResponse(
-            id=str(user.id),
-            nick_name=user.nick_name,
-            first_name=user.first_name,
-            middle_name=user.middle_name,
-            last_name=user.last_name,
-            email_address=user.email_address,
-            phone_number=user.phone_number,
-            self_bio=user.self_bio,
-            user_type=user.user_type,
-            password=user.password,
-            created_at=user.created_at.isoformat() if user.created_at else None,
-            updated_at=user.updated_at.isoformat() if user.updated_at else None,
-            deleted_at=user.deleted_at.isoformat() if user.deleted_at else None,
-            modified_by=str(user.modified_by) if user.modified_by else None,
-        )
-        for user in users
-    ]
+    return [user_to_response(user) for user in users]
 
 
 @router.get("/avatars")
@@ -58,25 +40,7 @@ async def get_avatars(
         .limit(limit)
         .all()
     )
-    return [
-        UserResponse(
-            id=str(user.id),
-            nick_name=user.nick_name,
-            first_name=user.first_name,
-            middle_name=user.middle_name,
-            last_name=user.last_name,
-            email_address=user.email_address,
-            phone_number=user.phone_number,
-            self_bio=user.self_bio,
-            user_type=user.user_type,
-            password=user.password,
-            created_at=user.created_at.isoformat() if user.created_at else None,
-            updated_at=user.updated_at.isoformat() if user.updated_at else None,
-            deleted_at=user.deleted_at.isoformat() if user.deleted_at else None,
-            modified_by=str(user.modified_by) if user.modified_by else None,
-        )
-        for user in users
-    ]
+    return [user_to_response(user) for user in users]
 
 
 @router.get("/{user_id}")
@@ -91,22 +55,7 @@ async def get_user(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(
-        id=str(user.id),
-        nick_name=user.nick_name,
-        first_name=user.first_name,
-        middle_name=user.middle_name,
-        last_name=user.last_name,
-        email_address=user.email_address,
-        phone_number=user.phone_number,
-        self_bio=user.self_bio,
-        user_type=user.user_type,
-        password=user.password,
-        created_at=user.created_at.isoformat() if user.created_at else None,
-        updated_at=user.updated_at.isoformat() if user.updated_at else None,
-        deleted_at=user.deleted_at.isoformat() if user.deleted_at else None,
-        modified_by=str(user.modified_by) if user.modified_by else None,
-    )
+    return user_to_response(user)
 
 
 @router.post("/")
