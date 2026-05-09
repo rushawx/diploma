@@ -1,6 +1,6 @@
 # Student Projects Recommender System
 
-FastAPI backend with Streamlit frontend and PostgreSQL database, featuring intelligent project recommendations using multiple ML algorithms (LightFM, ALS, Transformers) and an avatar-based persona system.
+FastAPI backend with Streamlit frontend and PostgreSQL database, featuring intelligent project recommendations using multiple ML algorithms (LightFM, Transformers) and an avatar-based persona system.
 
 ## Quick Start
 
@@ -33,7 +33,6 @@ docker compose up --build
 - **Semantic Search** - Transformer-based search using `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
 - **Tags-Based Search** - Cosine similarity search on project tag vectors
 - **LightFM Recommendations** - Collaborative filtering using the user's avatar's preferences
-- **ALS Recommendations** - Alternating Least Squares for personalized collaborative filtering
 - **Popular Items** - Highly rated projects for cold-start users
 
 ### Avatar System
@@ -76,7 +75,7 @@ docker compose up --build
 - Project CRUD operations with automatic embedding and tags generation
 - Semantic project search using transformer models
 - Tags-based search using cosine similarity
-- Multiple recommendation algorithms (LightFM, ALS, Popular)
+- Multiple recommendation algorithms (LightFM, Popular)
 - User profile and project claiming functionality
 - Project rating system (1-5 stars)
 - Tag management for users and projects
@@ -86,7 +85,6 @@ docker compose up --build
 ### ML Models Used
 - **Transformer Model**: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (384-dim embeddings)
 - **LightFM**: Collaborative filtering with avatar-based preferences
-- **ALS (Implicit)**: Alternating Least Squares for user-item recommendations
 - **Cosine Similarity**: For both embeddings and tag vectors
 
 ## Architecture
@@ -113,7 +111,7 @@ docker compose up --build
 │   │   ├── streamlit.py         # Main application
 │   │   ├── config.py            # Configuration settings
 │   │   └── handlers/            # ML and auth utilities
-│   │       ├── transformers.py  # ML models (LightFM, ALS, Transformers)
+│   │       ├── transformers.py  # ML models (LightFM, Transformers)
 │   │       └── auth_helpers.py  # Authentication helpers
 │   └── requirements.txt
 ├── recsAppInit/                 # Data initialization service
@@ -238,6 +236,5 @@ docker compose up --build
 - **ML/ML Models**:
   - Sentence Transformers for embeddings
   - LightFM for collaborative filtering
-  - Implicit for ALS
   - Scikit-learn for similarity calculations
 - **Containerization**: Docker & Docker Compose
