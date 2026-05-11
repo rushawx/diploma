@@ -91,7 +91,9 @@ def get_model():
         with open(model_path, "rb") as f:
             model = torch.load(f, map_location="cpu", weights_only=False)
     else:
-        st.info(f"🌐 Loading transformer from HuggingFace: {settings.TRANSFORMER_MODEL}")
+        st.info(
+            f"🌐 Loading transformer from HuggingFace: {settings.TRANSFORMER_MODEL}"
+        )
         model = SentenceTransformer(settings.TRANSFORMER_MODEL)
 
     device = get_torch_device()

@@ -497,7 +497,9 @@ def main():
                 model = torch.load(f, map_location="cpu", weights_only=False)
             logger.info("ML model loaded from local file successfully")
         else:
-            logger.info(f"Loading ML model from HuggingFace: {settings.TRANSFORMER_MODEL}")
+            logger.info(
+                f"Loading ML model from HuggingFace: {settings.TRANSFORMER_MODEL}"
+            )
             model = SentenceTransformer(settings.TRANSFORMER_MODEL)
             logger.info("ML model loaded from HuggingFace successfully")
 

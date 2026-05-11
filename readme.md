@@ -228,6 +228,45 @@ docker compose up --build
 - Embedding model configuration
 - Batch processing settings
 
+## Reproducing Research Results
+
+The research notebooks are located in the `research/` directory and contain the data analysis, model training, and evaluation experiments.
+
+### Setup
+
+1. **Create a virtual environment and install dependencies**:
+
+```bash
+cd research
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. **Set up environment variables** (if needed) - create a `.env` file with database credentials or other required variables.
+
+### Running the Notebooks
+
+```bash
+cd research
+jupyter notebook
+# or
+jupyter lab
+```
+
+### Notebooks Overview
+
+| Notebook | Description |
+|----------|-------------|
+| `00_research.ipynb` | Initial research setup and data loading |
+| `01_clean_data_raw.ipynb` | Data cleaning and preprocessing |
+| `02_tags.ipynb` | Tags generation |
+| `03_profiles.ipynb` | Users generation |
+| `04_ratings.ipynb` | Ratings generation |
+| `05_lightfm_sber.ipynb` | LightFM model training with RePlay quality assessment |
+| `06_quality.ipynb` | Model LLM-as-a-Judge quality evaluation |
+| `07_eda.ipynb` | Exploratory data analysis |
+
 ## Technology Stack
 
 - **Backend**: FastAPI with SQLAlchemy ORM

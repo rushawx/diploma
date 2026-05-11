@@ -129,7 +129,9 @@ def get_rated_project_ids(user_id: str) -> set:
         if response.status_code == 200:
             all_ratings = response.json()
             return {
-                rating["project_id"] for rating in all_ratings if rating["user_id"] == user_id
+                rating["project_id"]
+                for rating in all_ratings
+                if rating["user_id"] == user_id
             }
         return set()
     except Exception as e:
@@ -140,7 +142,9 @@ def filter_by_rated_projects(results_df, rated_project_ids: set):
     """Filter results DataFrame to exclude already rated projects"""
     if results_df.empty:
         return results_df
-    return results_df[~results_df["project"].apply(lambda p: p.get("id") in rated_project_ids)]
+    return results_df[
+        ~results_df["project"].apply(lambda p: p.get("id") in rated_project_ids)
+    ]
 
 
 def create_project_selectbox_options(filtered_results_df):
@@ -233,7 +237,9 @@ elif choice == "Find Projects by Query":
             if query:
                 results = transformer_search(model, query)
                 if not results.empty:
-                    filtered_results = filter_by_rated_projects(results, rated_project_ids)
+                    filtered_results = filter_by_rated_projects(
+                        results, rated_project_ids
+                    )
 
                     if filtered_results.empty:
                         st.info(
@@ -242,7 +248,9 @@ elif choice == "Find Projects by Query":
                     else:
                         st.markdown("### Similar Projects Found")
 
-                        project_options = create_project_selectbox_options(filtered_results)
+                        project_options = create_project_selectbox_options(
+                            filtered_results
+                        )
 
                         selected_project_name = st.selectbox(
                             "Select a project to claim as yours",
@@ -260,7 +268,9 @@ elif choice == "Find Projects by Query":
                         st.markdown("#### Available Similar Projects:")
                         for _, row in filtered_results.iterrows():
                             display_search_result(
-                                row.get("project", {}), row.get("score", 0), "Similarity"
+                                row.get("project", {}),
+                                row.get("score", 0),
+                                "Similarity",
                             )
                 else:
                     st.info("No similar projects found")
@@ -310,7 +320,9 @@ elif choice == "Get Recommendations":
                                     f"Found {len(results)} recommendations for you"
                                 )
 
-                                project_options = create_project_selectbox_options(results)
+                                project_options = create_project_selectbox_options(
+                                    results
+                                )
 
                                 selected_project_name = st.selectbox(
                                     "Select a project to claim as yours",
