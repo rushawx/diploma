@@ -494,7 +494,7 @@ def main():
         if os.path.exists(model_path):
             logger.info(f"Loading ML model from local file: {model_path}")
             with open(model_path, "rb") as f:
-                model = torch.load(f, map_location="cpu", weights_only=False)
+                model = pickle.load(f)
             logger.info("ML model loaded from local file successfully")
         else:
             logger.info(

@@ -89,7 +89,7 @@ def get_model():
     if os.path.exists(model_path):
         st.info(f"📦 Loading transformer from local file: {model_path}")
         with open(model_path, "rb") as f:
-            model = torch.load(f, map_location="cpu", weights_only=False)
+            model = pickle.load(f)
     else:
         st.info(
             f"🌐 Loading transformer from HuggingFace: {settings.TRANSFORMER_MODEL}"
