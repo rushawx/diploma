@@ -725,7 +725,7 @@ elif choice == "Your Avatar":
                     if selected_tags:
                         make_authenticated_request("DELETE", f"/tags/user/{user_id}")
                         if make_authenticated_request(
-                            "POST", f"/tags/user/{user_id}", json=selected_tags
+                            "POST", f"/tags/user/{user_id}", json={"tag_names": selected_tags}
                         ):
                             st.success("Tags updated successfully!")
                             st.rerun()
