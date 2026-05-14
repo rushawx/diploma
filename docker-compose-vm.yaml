@@ -81,7 +81,7 @@ services:
       - PG_HOST=db
       - PG_PORT=5432
       - PG_USER=postgres
-      - PG_PASSWORD=postgres
+      - PG_PASSWORD=${PG_PASSWORD}
       - PG_DATABASE=postgres
       - DB_POOL_SIZE=5
       - DB_MAX_OVERFLOW=10
